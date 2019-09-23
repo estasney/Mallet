@@ -23,6 +23,15 @@ public class HierarchicalLDATUI {
 		(HierarchicalLDATUI.class, "output-state", "FILENAME", true, null,
 		 "The filename in which to write the Gibbs sampling state after at the end of the iterations.  " +
 		 "By default this is null, indicating that no file will be written.", null);
+
+	static CommandOption.String outputModelFilename = new CommandOption.String(HierarchicalLDATUI.class, "output-model", "FILENAME", true, null,
+			"The filename in which to write the binary topic model at the end of the iterations.  " +
+					"By default this is null, indicating that no file will be written.", null);
+
+
+	static CommandOption.String topicNodeFile = new CommandOption.String
+			(HierarchicalLDATUI.class, "output-topics", "FILENAME", true, null,
+					"Write printNode to file after training", null);
 	
 	static CommandOption.Integer randomSeed = new CommandOption.Integer
 		(HierarchicalLDATUI.class, "random-seed", "INTEGER", true, 0,
@@ -112,6 +121,24 @@ public class HierarchicalLDATUI {
 
 		if (stateFile.value() != null) {
 			hlda.printState(new PrintWriter(stateFile.value()));
+		}
+
+		if (topicNodeFile.value() != null) {
+			hlda.printTopicNodes(new PrintWriter(topicNodeFile.value()));
+		}
+
+		if (outputModelFilename.value != null) {
+
+			try {
+
+				ObjectOutputStream oos =
+						new ObjectOutputStream (new FileOutputStream (outputModelFilename.value));
+				oos.writeObject (hlda);
+				oos.close();
+
+			} catch (Exception e) {
+				System.out.println("Couldn't write topic model to filename " + outputModelFilename.value);
+			}
 		}
 
 		if (testing != null) {

@@ -3,6 +3,7 @@ package cc.mallet.topics;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.io.*;
+import java.util.List;
 
 import cc.mallet.types.*;
 import cc.mallet.util.Randoms;
@@ -10,6 +11,7 @@ import cc.mallet.util.Randoms;
 import com.carrotsearch.hppc.ObjectDoubleHashMap;
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.cursors.IntIntCursor;
+import com.sun.istack.internal.Nullable;
 
 public class HierarchicalLDA implements Serializable {
 
@@ -459,28 +461,60 @@ public class HierarchicalLDA implements Serializable {
 
 			doc++;
 		}
-	}	    
+	}
+
+	public void printTopicNodes(PrintWriter out) {
+		printNode(rootNode, 0, true, true, out);
+	}
 
     public void printNodes() {
-		printNode(rootNode, 0, false);
+		printNode(rootNode, 0, false, false, null);
     }
     
     public void printNodes(boolean withWeight) {
-		printNode(rootNode, 0, withWeight);
+		printNode(rootNode, 0, withWeight, false, null);
     }
 
-    public void printNode(NCRPNode node, int indent, boolean withWeight) {
-		StringBuffer out = new StringBuffer();
-		for (int i=0; i<indent; i++) {
-			out.append("  ");
+    public void printNode(NCRPNode node, int indent, boolean withWeight, boolean csvFormat, @Nullable PrintWriter out) {
+
+		String sepChar;
+		if (!csvFormat) {
+			sepChar = "  ";
+		} else {
+			sepChar = ",";
 		}
 
-		out.append(node.totalTokens + "/" + node.customers + " ");
-		out.append(node.getTopWords(numWordsToDisplay, withWeight));
-		System.out.println(out);
+    	StringBuffer path = new StringBuffer();
+		for (int i=0; i<indent; i++) {
+			path.append(sepChar);
+		}
+
+		if (!csvFormat) {
+			path.append("n_tokens: " + node.totalTokens + "/n_customers: " + node.customers + " ");
+			path.append(node.getTopWords(numWordsToDisplay, withWeight));
+		} else {
+			String topwords = node.getTopWords(numWordsToDisplay, withWeight);
+			String[] tempArray;
+
+			String delimiter = " ";
+			tempArray = topwords.split(delimiter);
+
+			String csvString = String.join(",", tempArray);
+			csvString += "\n";
+			path.append(csvString);
+		}
+
+
+
+		if (out == null) {
+			System.out.println(path);
+		} else {
+			out.println(path);
+		}
+
 	
 		for (NCRPNode child: node.children) {
-			printNode(child, indent + 1, withWeight);
+			printNode(child, indent + 1, withWeight, csvFormat, out);
 		}
     }
 
