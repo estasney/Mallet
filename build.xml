@@ -12,6 +12,7 @@
     <property name="java_version" value="1.8"/>
     <property name="build.compiler" value="modern"/>
 
+
     <path id="project.classpath">
         <pathelement path="${class}"/>
         <fileset dir="lib" includes="*.jar"/>
@@ -77,7 +78,7 @@
        includeantruntime="false">
        <src path="src"/>
        <compilerclasspath>
-         <pathelement location="lib/error_prone_ant-2.2.0.jar"/>
+         <pathelement location="lib/errorprone.jar"/>
        </compilerclasspath>
      </javac>
     </target>
@@ -107,6 +108,7 @@
 
     <target name="test" depends="compile">
         <junit printsummary="yes">
+            <property name="file.encoding" value="UTF-8"/>
             <classpath>
                 <pathelement path="${class}"/>
                 <fileset dir="lib" includes="*.jar"/>
