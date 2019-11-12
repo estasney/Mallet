@@ -35,7 +35,7 @@ public class Csv2Vectors {
 
 	private static Logger logger = MalletLogger.getLogger(Csv2Vectors.class.getName());
 	public static String defaultLineRegex = "^(\\S*)[\\s,]*(\\S*)[\\s,]*(.*)$";
-	public static String defaultTokenRegex = "\\p{L}[\\p{L}\\p{P}]+\\p{L}";
+	public static String defaultTokenRegex = "\\w+|\\$[\\d\\.]+|\\S+";
 
 	static CommandOption.File inputFile = new CommandOption.File(Csv2Vectors.class, "input", "FILE", true, null,
 		 "The file containing data to be classified, one instance per line", null);
