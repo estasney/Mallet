@@ -85,7 +85,7 @@ public class HierarchicalLDA implements Serializable {
 		this.random = random;
 
 		if (!(instances.get(0).getData() instanceof FeatureSequence)) {
-			throw new IllegalArgumentException("Input must be a FeatureSequence, using the --feature-sequence option when impoting data, for example");
+			throw new IllegalArgumentException("Input must be a FeatureSequence, using the --feature-sequence option when importing data, for example");
 		}
 
 		numDocuments = instances.size();
@@ -427,10 +427,18 @@ public class HierarchicalLDA implements Serializable {
 	}
 
 	/**
-	 * Write a text file describing the current sampling state.
+	 * Write a csv file describing the current sampling state.
 	 */
 	public void printState(PrintWriter out) throws IOException {
 		int doc = 0;
+		StringBuffer header = new StringBuffer();
+		int headerLevel;
+		for (headerLevel = 0; headerLevel <= numLevels - 1; headerLevel++){
+			header.append("Level " + headerLevel + ",");
+		}
+
+		header.append("ID,Token,Token Level,Token Weight");
+		out.println(header);
 
 		Alphabet alphabet = instances.getDataAlphabet();
 
@@ -450,9 +458,12 @@ public class HierarchicalLDA implements Serializable {
 			childNode = documentLeaves[doc];
 
 			for (level = numLevels - 1; level >= 0; level--) {
-				path.append(node.nodeID + " ");
+				path.insert(0, "," + node.nodeID);
 				node = node.parent;
 			}
+
+			path.replace(0, 1, "");
+			path.append(",");
 
 			List nodeWeights = childNode.getTopWeights(seqLen);
 
@@ -460,10 +471,9 @@ public class HierarchicalLDA implements Serializable {
 				type = fs.getIndexAtPosition(token);
 				level = docLevels[token];
 				tokenWeight = (double) nodeWeights.get(token);
-
-
 				// The "" just tells java we're not trying to add a string and an int
-				out.println(path + "" + type + " " + alphabet.lookupObject(type) + " " + level + " " + " " + tokenWeight);
+				String tokenData = path + "" + type + "," + alphabet.lookupObject(type) + "," + level + "," + tokenWeight;
+				out.println(tokenData);
 			}
 
 			doc++;
