@@ -4,8 +4,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.io.*;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import cc.mallet.types.*;
+import cc.mallet.util.CommandOption;
 import cc.mallet.util.Randoms;
 
 import com.carrotsearch.hppc.ObjectDoubleHashMap;
@@ -434,10 +437,10 @@ public class HierarchicalLDA implements Serializable {
 		StringBuffer header = new StringBuffer();
 		int headerLevel;
 		for (headerLevel = 0; headerLevel <= numLevels - 1; headerLevel++){
-			header.append("Level " + headerLevel + ",");
+			header.append("Level ").append(headerLevel).append(",");
 		}
 
-		header.append("ID,Token,Token Level,Token Weight");
+		header.append("ID,Token,Token_Level,Token_Weight");
 		out.println(header);
 
 		Alphabet alphabet = instances.getDataAlphabet();
@@ -472,12 +475,25 @@ public class HierarchicalLDA implements Serializable {
 				level = docLevels[token];
 				tokenWeight = (double) nodeWeights.get(token);
 				// The "" just tells java we're not trying to add a string and an int
-				String tokenData = path + "" + type + "," + alphabet.lookupObject(type) + "," + level + "," + tokenWeight;
+				Object alphaObject = alphabet.lookupObject(type);
+				String alphaString = alphaObject.toString();
+				String tokenDataSafe = this.escapeSpecialCharacters(alphaString);
+				String tokenData = path + "" + type + "," + tokenDataSafe + "," + level + "," + tokenWeight;
+
 				out.println(tokenData);
 			}
 
 			doc++;
 		}
+	}
+
+	public String escapeSpecialCharacters(String data) {
+		String escapedData = data.replaceAll("\\R", " ");
+		if (data.contains(",") || data.contains("\"") || data.contains("'")) {
+			data = data.replace("\"", "\"\"");
+			escapedData = "\"" + data + "\"";
+		}
+		return escapedData;
 	}
 
 	public void printTopicNodes(PrintWriter out) {
@@ -507,7 +523,7 @@ public class HierarchicalLDA implements Serializable {
 		}
 
 		if (!csvFormat) {
-			path.append("n_tokens: " + node.totalTokens + "/n_customers: " + node.customers + " ");
+			path.append("n_tokens: ").append(node.totalTokens).append("/n_customers: ").append(node.customers).append(" ");
 			path.append(node.getTopWords(numWordsToDisplay, withWeight));
 		} else {
 			String topwords = node.getTopWords(numWordsToDisplay, withWeight);
@@ -666,7 +682,7 @@ public class HierarchicalLDA implements Serializable {
 			children = new ArrayList<NCRPNode>();
 			this.level = level;
 
-			//System.out.println("new node at level " + level);
+			System.out.println("new node at level " + level);
 
 			totalTokens = 0;
 			typeCounts = new int[dimensions];

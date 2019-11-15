@@ -10,12 +10,9 @@
 **Params**
 1. input
 2. output
-3. keep-sequence TRUE
+3. keep-sequence TRUE / keep-sequence-bigrams TRUE
+4. preserve-case TRUE
 
 
-
-
-
- 
 `bin/mallet import-file --input <file> --output <file>`
 
