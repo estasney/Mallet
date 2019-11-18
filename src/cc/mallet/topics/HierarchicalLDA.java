@@ -440,7 +440,7 @@ public class HierarchicalLDA implements Serializable {
 			header.append("Level ").append(headerLevel).append(",");
 		}
 
-		header.append("ID,Token,Token_Level,Token_Weight");
+		header.append("Node_ID,Token,Token_Level,Token_Weight");
 		out.println(header);
 
 		Alphabet alphabet = instances.getDataAlphabet();
@@ -496,8 +496,13 @@ public class HierarchicalLDA implements Serializable {
 		return escapedData;
 	}
 
-	public void printTopicNodes(PrintWriter out) {
-		printNode(rootNode, 0, true, true, out);
+
+
+	public void printTopicNodes(String fp) throws IOException {
+		PrintWriter out1 = new PrintWriter(new BufferedWriter(new FileWriter(fp)));
+		out1.write("Node_ID,Node_Level,Word,Weight" + "\n");
+		printNode(rootNode, 0, true, true, out1);
+		out1.close();
 	}
 
 	public void printNodes() {
@@ -518,30 +523,48 @@ public class HierarchicalLDA implements Serializable {
 		}
 
 		StringBuffer path = new StringBuffer();
-		for (int i = 0; i < indent; i++) {
-			path.append(sepChar);
+		if (!csvFormat) {
+			for (int i = 0; i < indent; i++) {
+				path.append(sepChar);
+			}
 		}
+
 
 		if (!csvFormat) {
 			path.append("n_tokens: ").append(node.totalTokens).append("/n_customers: ").append(node.customers).append(" ");
 			path.append(node.getTopWords(numWordsToDisplay, withWeight));
 		} else {
+
+			// get an arraylist of Word, Weight
+			// make an edgelist
 			String topwords = node.getTopWords(numWordsToDisplay, withWeight);
 			String[] tempArray;
 
 			String delimiter = " ";
 			tempArray = topwords.split(delimiter);
+			for (String s : tempArray) {
 
-			String csvString = String.join(",", tempArray);
-			csvString += "\n";
-			path.append(csvString);
+				String[] lineTempArray;
+				lineTempArray = s.split(":");
+				String tokenSafe = this.escapeSpecialCharacters(lineTempArray[0]);
+				String csvString = node.nodeID + "," + node.level + "," + tokenSafe + "," + lineTempArray[1];
+				if (out == null) {
+					System.out.println(csvString);
+				} else {
+					out.println(csvString);
+				}
+
+			}
 		}
 
 
 		if (out == null) {
 			System.out.println(path);
 		} else {
-			out.println(path);
+			if(!csvFormat){
+				out.println(path);
+			}
+
 		}
 
 
