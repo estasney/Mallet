@@ -496,13 +496,57 @@ public class HierarchicalLDA implements Serializable {
 		return escapedData;
 	}
 
-
+	public void printEdgeList(String fp) throws IOException {
+		PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter(fp)));
+		out.write("parent,child,type,weight" + "\n");
+		printNodeEdge(rootNode, out);
+		out.close();
+	}
 
 	public void printTopicNodes(String fp) throws IOException {
 		PrintWriter out1 = new PrintWriter(new BufferedWriter(new FileWriter(fp)));
 		out1.write("Node_ID,Node_Level,Word,Weight" + "\n");
 		printNode(rootNode, 0, true, true, out1);
 		out1.close();
+	}
+
+	public void printNodeEdge(NCRPNode node, PrintWriter out) {
+		String topwords = node.getTopWords(numWordsToDisplay, true);
+		String[] tempArray;
+
+		String delimiter = " ";
+		tempArray = topwords.split(delimiter);
+		/*
+		* Print this nodes top words
+		* parent,child, type, weight
+		* */
+		for (String s : tempArray) {
+
+			String[] lineTempArray;
+			lineTempArray = s.split(":");
+			String tokenSafe = this.escapeSpecialCharacters(lineTempArray[0]);
+			String csvString = node.nodeID + "," + tokenSafe + ",word," + lineTempArray[1];
+			if (out == null) {
+				System.out.println(csvString);
+			} else {
+				out.println(csvString);
+			}
+
+		}
+
+		/*
+		Print this nodes children
+		parent, child, type, weight
+		 */
+		for (int i = 0; i<node.children.size(); i++) {
+			int childId = node.children.get(i).nodeID;
+			String csvString = node.nodeID + "," + childId + ",node,0";
+			out.println(csvString);
+		}
+
+		for (NCRPNode child : node.children) {
+			printNodeEdge(child, out);
+		}
 	}
 
 	public void printNodes() {

@@ -124,7 +124,8 @@ public class HierarchicalLDATUI {
 		}
 
 		if (topicNodeFile.value() != null) {
-			hlda.printTopicNodes(topicNodeFile.value());
+//			hlda.printTopicNodes(topicNodeFile.value());
+			hlda.printEdgeList(topicNodeFile.value());
 		}
 
 		if (outputModelFilename.value != null) {
