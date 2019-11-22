@@ -514,10 +514,17 @@ public class HierarchicalLDA implements Serializable {
 
 		// Create token 2 id mapping
 		Map token2Id = new HashMap();
+
+
 		Alphabet alphabet = instances.getDataAlphabet();
 		ArrayList alphabetArray = alphabet.entries;
+
 		for(int i = 0; i < alphabetArray.size(); i++) {
-			token2Id.put(alphabetArray.get(i), i);
+
+			// Prevent token id collisions with nodes
+			String token = (String) alphabetArray.get(i);
+			int tokenId = i + this.totalNodes;
+			token2Id.put(token, tokenId);
 		}
 
 		printNodeEdge(rootNode, out, token2Id);
