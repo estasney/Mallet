@@ -523,7 +523,9 @@ public class HierarchicalLDA implements Serializable {
 	}
 
 	public void printNodeEdge(NCRPNode node, PrintWriter out) {
-		String topwords = node.getTopWords(numWordsToDisplay, true);
+		// get all words with a weight greater than 0
+		int nnz = Arrays.stream(node.typeCounts).filter(x -> x > 0).toArray().length;
+		String topwords = node.getTopWords(nnz, true);
 		String[] tempArray;
 
 		String delimiter = " ";
