@@ -22,6 +22,7 @@ import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.io.Serializable;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.UUID;
@@ -53,8 +54,9 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
  */
 public class Alphabet implements Serializable
 {
+
     ObjectIntHashMap map;
-    ArrayList entries;
+    public ArrayList entries;
     volatile boolean growthStopped = false;
     Class entryClass = null;
     UUID instanceId = UUID.randomUUID();  //used in readResolve to identify persitent instances

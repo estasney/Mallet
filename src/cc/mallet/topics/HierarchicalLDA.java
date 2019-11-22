@@ -1,11 +1,11 @@
 package cc.mallet.topics;
 
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.lang.reflect.Array;
+import java.util.*;
 import java.io.*;
-import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 
 import cc.mallet.types.*;
 import cc.mallet.util.CommandOption;
@@ -510,8 +510,17 @@ public class HierarchicalLDA implements Serializable {
 
 	public void printEdgeList(String fp) throws IOException {
 		PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter(fp)));
-		out.write("parent,child,type,weight" + "\n");
-		printNodeEdge(rootNode, out);
+		out.write("parent,child,child_id,type,child_weight,parent_weight,parent_level" + "\n");
+
+		// Create token 2 id mapping
+		Map token2Id = new HashMap();
+		Alphabet alphabet = instances.getDataAlphabet();
+		ArrayList alphabetArray = alphabet.entries;
+		for(int i = 0; i < alphabetArray.size(); i++) {
+			token2Id.put(alphabetArray.get(i), i);
+		}
+
+		printNodeEdge(rootNode, out, token2Id);
 		out.close();
 	}
 
@@ -522,24 +531,27 @@ public class HierarchicalLDA implements Serializable {
 		out1.close();
 	}
 
-	public void printNodeEdge(NCRPNode node, PrintWriter out) {
+	public void printNodeEdge(NCRPNode node, PrintWriter out, Map token2id) {
+		// alphabet is used to retrieve token ids
 		// get all words with a weight greater than 0
 		int nnz = Arrays.stream(node.typeCounts).filter(x -> x > 0).toArray().length;
 		String topwords = node.getTopWords(nnz, true);
+		int nodeLevel = node.level;
 		String[] tempArray;
 
 		String delimiter = " ";
 		tempArray = topwords.split(delimiter);
 		/*
-		* Print this nodes top words
-		* parent,child, type, weight
+		* Print this nodes top words and node data
+		* "parent,child,child_id,child_type,child_weight,parent_weight,parent_level"
 		* */
 		for (String s : tempArray) {
 
 			String[] lineTempArray;
 			lineTempArray = s.split(":");
 			String tokenSafe = this.escapeSpecialCharacters(lineTempArray[0]);
-			String csvString = node.nodeID + "," + tokenSafe + ",word," + lineTempArray[1];
+			int tokenId = (int) token2id.get(lineTempArray[0]);
+			String csvString = node.nodeID + "," + tokenSafe + "," + tokenId + ",word," + lineTempArray[1] + "," + node.customers + "," + nodeLevel;
 			if (out == null) {
 				System.out.println(csvString);
 			} else {
@@ -552,14 +564,21 @@ public class HierarchicalLDA implements Serializable {
 		Print this nodes children
 		parent, child, type, weight
 		 */
-		for (int i = 0; i<node.children.size(); i++) {
+		for (int i = 0; i < node.children.size(); i++) {
 			int childId = node.children.get(i).nodeID;
-			String csvString = node.nodeID + "," + childId + ",node,0";
-			out.println(csvString);
+			int childCustomers = node.children.get(i).customers;
+			int childLevel = node.children.get(i).level;
+			String csvString = node.nodeID + "," + childId + ",node," + childCustomers + "," + node.customers + "," + node.level;
+			if (out == null) {
+				System.out.println(csvString);
+			} else {
+				out.println(csvString);
+			}
+
 		}
 
 		for (NCRPNode child : node.children) {
-			printNodeEdge(child, out);
+			printNodeEdge(child, out, token2id);
 		}
 	}
 
