@@ -112,6 +112,7 @@ public class HierarchicalLDA implements Serializable {
 			FeatureSequence fs = (FeatureSequence) instances.get(doc).getData();
 			int seqLen = fs.getLength();
 
+			// assign first step as rootnode
 			path[0] = rootNode;
 			rootNode.customers++;
 			for (int level = 1; level < numLevels; level++) {
@@ -120,6 +121,7 @@ public class HierarchicalLDA implements Serializable {
 			}
 			node = path[numLevels - 1];
 
+			// fill levels[doc_idx] with 0's with length of unique tokens
 			levels[doc] = new int[seqLen];
 			documentLeaves[doc] = node;
 
@@ -142,15 +144,17 @@ public class HierarchicalLDA implements Serializable {
 				sampleTopics(doc);
 			}
 
+
+
+			if (iteration % displayTopicsInterval == 0) {
+				printNodes();
+			}
+
 			if (showProgress) {
 				System.out.print(".");
 				if (iteration % 50 == 0) {
 					System.out.println(" " + iteration);
 				}
-			}
-
-			if (iteration % displayTopicsInterval == 0) {
-				printNodes();
 			}
 		}
 	}
@@ -443,11 +447,15 @@ public class HierarchicalLDA implements Serializable {
 		header.append("Node_ID,Token,Token_Level,Token_Weight");
 		out.println(header);
 
+		// instances are documents, get all tokens present in all documents
 		Alphabet alphabet = instances.getDataAlphabet();
 
+		// for document in documents...
 		for (Instance instance : instances) {
+
 			FeatureSequence fs = (FeatureSequence) instance.getData();
 			int seqLen = fs.getLength();
+			// get array of levels that each token in document is assigned
 			int[] docLevels = levels[doc];
 			NCRPNode node;
 			NCRPNode childNode;
@@ -457,9 +465,13 @@ public class HierarchicalLDA implements Serializable {
 			StringBuffer path = new StringBuffer();
 
 			// Start with the leaf, and build a string describing the path for this doc
+			// documentLeaves are all at lowest level
 			node = documentLeaves[doc];
+
+			// this is the lowest level node
 			childNode = documentLeaves[doc];
 
+			// this describes the hierarchy of the nodes
 			for (level = numLevels - 1; level >= 0; level--) {
 				path.insert(0, "," + node.nodeID);
 				node = node.parent;
@@ -782,14 +794,18 @@ public class HierarchicalLDA implements Serializable {
 
 		public void dropPath() {
 			NCRPNode node = this;
+			// remove 1 customer from node ... does it survive?
 			node.customers--;
 			if (node.customers == 0) {
+				System.out.println("Node removed at level " + node.level);
 				node.parent.remove(node);
 			}
+			// do the same for parent nodes
 			for (int l = 1; l < numLevels; l++) {
 				node = node.parent;
 				node.customers--;
 				if (node.customers == 0) {
+					System.out.println("Node removed at level " + node.level);
 					node.parent.remove(node);
 				}
 			}
