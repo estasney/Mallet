@@ -568,7 +568,7 @@ public class HierarchicalLDA implements Serializable {
 			int childId = node.children.get(i).nodeID;
 			int childCustomers = node.children.get(i).customers;
 			int childLevel = node.children.get(i).level;
-			String csvString = node.nodeID + "," + childId + ",node," + childCustomers + "," + node.customers + "," + node.level;
+			String csvString = node.nodeID + "," + childId + "," + childId + ",node," + childCustomers + "," + node.customers + "," + node.level;
 			if (out == null) {
 				System.out.println(csvString);
 			} else {
