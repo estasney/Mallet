@@ -57,18 +57,20 @@ public class HierarchicalLDATUI {
 		(HierarchicalLDATUI.class, "num-levels", "INTEGER", true, 3,
 		 "The number of levels in the tree.", null);
 
-	static CommandOption.Double alpha = new CommandOption.Double
-		(HierarchicalLDATUI.class, "alpha", "DECIMAL", true, 10.0,
-		 "Alpha parameter: smoothing over level distributions.", null);
+	static CommandOption.DoubleArray alpha = new CommandOption.DoubleArray
+		(HierarchicalLDATUI.class, "alpha", "DECIMAL,[DECIMAL,...]", true, new double[] {10, 10, 10},
+		 "Alpha parameter: smoothing over level distributions.  "+
+				"For example --alpha 10,10,10", null);
 
-	static CommandOption.Double gamma = new CommandOption.Double
-		(HierarchicalLDATUI.class, "gamma", "DECIMAL", true, 1.0,
-		 "Gamma parameter: CRP smoothing parameter; number of imaginary customers at next, as yet unused table", null);
+	static CommandOption.DoubleArray gamma = new CommandOption.DoubleArray
+		(HierarchicalLDATUI.class, "gamma", "DECIMAL,[DECIMAL,...]", true, new double[] {1.0, 1.0, 1.0},
+		 "Gamma parameter: CRP smoothing parameter; number of imaginary customers at next, as yet unused table   "+
+				"For example --gamma 1,1,1", null);
 
-	static CommandOption.Double eta = new CommandOption.Double
-		(HierarchicalLDATUI.class, "eta", "DECIMAL", true, 0.1,
+	static CommandOption.DoubleArray eta = new CommandOption.DoubleArray
+		(HierarchicalLDATUI.class, "eta", "DECIMAL,[DECIMAL,...]", true, new double[] {0.1, 0.1, 0.1},
 		 "Eta parameter: smoothing over topic-word distributions", null);
-	
+
 	public static void main (String[] args) throws java.io.IOException {
 
 		// Process the command-line options
@@ -80,6 +82,28 @@ public class HierarchicalLDATUI {
 
 		if (inputFile.value() == null) {
 			System.err.println("Input instance list is required, use --input option");
+			System.exit(1);
+		}
+
+		// Check that gamma, alpha and eta all have length equal to num_levels
+		int argLength, nLevels;
+		nLevels = numLevels.value();
+
+		if (gamma.value().length != nLevels) {
+			argLength = gamma.value().length;
+			System.err.println("Gamma parameters are of length: " + argLength + " but numLevels is of length: " + nLevels);
+			System.exit(1);
+		}
+
+		if (eta.value().length != nLevels) {
+			argLength = eta.value().length;
+			System.err.println("Eta parameters are of length: " + argLength + " but numLevels is of length: " + nLevels);
+			System.exit(1);
+		}
+
+		if (alpha.value().length != nLevels) {
+			argLength = alpha.value().length;
+			System.err.println("Alpha parameters are of length: " + argLength + " but numLevels is of length: " + nLevels);
 			System.exit(1);
 		}
 
