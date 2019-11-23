@@ -17,6 +17,13 @@ import com.carrotsearch.hppc.cursors.IntIntCursor;
 
 public class HierarchicalLDA implements Serializable {
 
+	/*
+	NCRP Node uses Gamma to determine whether to add a new child node or return an existing one
+	With Gamma = 1 : .5 Probability of adding a new child
+	With Gamma = 0 : 0 Probability of adding a new child
+	With Gamma = 10 : ~ 0.9 Probability of adding a new child
+	 */
+
 	InstanceList instances;
 	InstanceList testing;
 
@@ -866,6 +873,7 @@ public class HierarchicalLDA implements Serializable {
 		}
 
 		public NCRPNode select() {
+			// creating an array of weights
 			double[] weights = new double[children.size() + 1];
 
 			weights[0] = gamma / (gamma + customers);
