@@ -33,15 +33,17 @@ public class HierarchicalLDA implements Serializable {
 	int numDocuments;
 	int numTypes;
 
-	double[] alpha; // smoothing on topic distributions
+
+	double[] alpha; // smoothing on topic distributions. A Document-Topic Prior
 	double[] gamma; // "imaginary" customers at the next, as yet unused table
-	double[] eta;   // smoothing on word distributions
+	double[] eta;   // smoothing on word distributions. A Topic-Word Prior
 	double[] etaSum;
 
 	int[][] levels; // indexed < doc, token >
 	NCRPNode[] documentLeaves; // currently selected path (ie leaf node) through the NCRP tree
 
 	int totalNodes = 0;
+	int[] levelTotalNodes;
 
 	String stateFile = "hlda.state";
 
@@ -93,8 +95,10 @@ public class HierarchicalLDA implements Serializable {
 		this.instances = instances;
 		this.testing = testing;
 		this.numLevels = numLevels;
+		this.levelTotalNodes = new int[numLevels];
 		this.random = random;
 		this.etaSum = new double[numLevels];
+
 
 		if (!(instances.get(0).getData() instanceof FeatureSequence)) {
 			throw new IllegalArgumentException("Input must be a FeatureSequence, using the --feature-sequence option when importing data, for example");
@@ -146,6 +150,27 @@ public class HierarchicalLDA implements Serializable {
 		}
 	}
 
+	public void countNodeLevels(NCRPNode node, int level) {
+		levelTotalNodes[level]+= node.children.size();
+		for (NCRPNode child: node.children) {
+			countNodeLevels(child, child.level);
+		}
+	}
+
+	public void countNodeLevels(NCRPNode node) {
+		// node counts it children and recursively calls countNodeLevels on its children
+		levelTotalNodes[0] = 1;
+		levelTotalNodes[1] = node.children.size();
+
+		for (int i = 2; i< numLevels; i++) {
+			levelTotalNodes[i] = 0;
+		};
+
+		for (NCRPNode child : node.children) {
+			countNodeLevels(child, child.level);
+		}
+	}
+
 	public void estimate(int numIterations) {
 		for (int iteration = 1; iteration <= numIterations; iteration++) {
 			for (int doc = 0; doc < numDocuments; doc++) {
@@ -155,10 +180,11 @@ public class HierarchicalLDA implements Serializable {
 				sampleTopics(doc);
 			}
 
-
+			countNodeLevels(rootNode);
 
 			if (iteration % displayTopicsInterval == 0) {
 				printNodes();
+				System.out.println(Arrays.toString(levelTotalNodes));
 			}
 
 			if (showProgress) {
@@ -232,8 +258,8 @@ public class HierarchicalLDA implements Serializable {
 		double[] newTopicWeights = new double[numLevels];
 		for (level = 1; level < numLevels; level++) {  // Skip the root...
 			int totalTokens = 0;
-			levelEta = eta[level];
-			levelEtaSum = etaSum[level];
+			levelEta = eta[level] / levelTotalNodes[level];
+			levelEtaSum = etaSum[level] / levelTotalNodes[level];
 
 			for (IntIntCursor keyVal : typeCounts[level]) {
 				for (int i = 0; i < keyVal.value; i++) {
@@ -304,12 +330,16 @@ public class HierarchicalLDA implements Serializable {
 
 	public void calculateNCRP(ObjectDoubleHashMap<NCRPNode> nodeWeights,
 							  NCRPNode node, double weight) {
-		double levelGamma = gamma[node.level];
+		double levelGamma;
 		for (NCRPNode child : node.children) {
+//			levelGamma = gamma[child.level] / levelTotalNodes[child.level];
+			levelGamma = gamma[child.level];
 
 			calculateNCRP(nodeWeights, child,
 					weight + Math.log((double) child.customers / (node.customers + levelGamma)));
 		}
+//		levelGamma = gamma[node.level] / levelTotalNodes[node.level];
+		levelGamma = gamma[node.level];
 		nodeWeights.put(node, weight + Math.log(levelGamma / (node.customers + levelGamma)));
 	}
 
@@ -324,11 +354,12 @@ public class HierarchicalLDA implements Serializable {
 		int totalTokens = 0;
 		double levelEta, levelEtaSum;
 
+		levelEta = eta[node.level] / levelTotalNodes[node.level];
+		levelEtaSum = etaSum[node.level] / levelTotalNodes[node.level];
 		//if (iteration > 1) { System.out.println(level + " " + nodeWeight); }
 
 		for (IntIntCursor keyVal : typeCounts[level]) {
-			levelEta = eta[node.level];
-			levelEtaSum = etaSum[node.level];
+
 			for (int i = 0; i < keyVal.value; i++) {
 				nodeWeight +=
 						Math.log((levelEta + node.typeCounts[keyVal.key] + i) /
@@ -429,9 +460,9 @@ public class HierarchicalLDA implements Serializable {
 
 			sum = 0.0;
 			for (level = 0; level < numLevels; level++) {
-				levelAlpha = alpha[level];
-				levelEta = eta[level];
-				levelEtaSum = etaSum[level];
+				levelAlpha = alpha[level] / levelTotalNodes[level];
+				levelEta = eta[level] / levelTotalNodes[level];
+				levelEtaSum = etaSum[level] / levelTotalNodes[level];
 
 				levelWeights[level] =
 						(levelAlpha + levelCounts[level]) *
@@ -713,8 +744,8 @@ public class HierarchicalLDA implements Serializable {
 
 			for (type = 0; type < numTypes; type++) {
 				for (level = 0; level < numLevels; level++) {
-					levelEta = eta[level];
-					levelEtaSum = etaSum[level];
+					levelEta = eta[level] / levelTotalNodes[level];
+					levelEtaSum = etaSum[level] / levelTotalNodes[level];
 					node = path[level];
 					multinomial[type] +=
 							levelWeights[level] *
@@ -823,6 +854,7 @@ public class HierarchicalLDA implements Serializable {
 
 			nodeID = totalNodes;
 			totalNodes++;
+			levelTotalNodes[level]++;
 		}
 
 		public NCRPNode(int dimensions) {
@@ -885,6 +917,7 @@ public class HierarchicalLDA implements Serializable {
 
 			int i = 0;
 			for (NCRPNode child : children) {
+//				levelGamma = gamma[child.level] / levelTotalNodes[child.level];
 				levelGamma = gamma[child.level];
 				weights[i] = (double) child.customers / (levelGamma + customers);
 				i++;
@@ -897,12 +930,14 @@ public class HierarchicalLDA implements Serializable {
 		public NCRPNode select() {
 			// creating an array of weights
 			double[] weights = new double[children.size() + 1];
+//			double levelGamma = gamma[this.level] / levelTotalNodes[this.level];
 			double levelGamma = gamma[this.level];
 
 			weights[0] = levelGamma / (levelGamma + customers);
 
 			int i = 1;
 			for (NCRPNode child : children) {
+//				levelGamma = gamma[child.level] / levelTotalNodes[child.level];
 				levelGamma = gamma[child.level];
 				weights[i] = (double) child.customers / (levelGamma + customers);
 				i++;
