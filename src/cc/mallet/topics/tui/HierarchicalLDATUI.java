@@ -49,6 +49,10 @@ public class HierarchicalLDATUI {
 		(HierarchicalLDATUI.class, "show-topics-interval", "INTEGER", true, 50,
 		 "The number of iterations between printing a brief summary of the topics so far.", null);
 
+	static CommandOption.Integer showNodesInterval = new CommandOption.Integer
+			(HierarchicalLDATUI.class, "node-count-interval", "INTEGER", true, 1,
+					"The number of iterations between printing a count of nodes at each level.", null);
+
 	static CommandOption.Integer topWords = new CommandOption.Integer
 		(HierarchicalLDATUI.class, "num-top-words", "INTEGER", true, 20,
 		 "The number of most probable words to print for each topic after model estimation.", null);
@@ -123,7 +127,7 @@ public class HierarchicalLDATUI {
 		
 		// Display preferences
 
-		hlda.setTopicDisplay(showTopicsInterval.value(), topWords.value());
+		hlda.setTopicDisplay(showTopicsInterval.value(), topWords.value(), showNodesInterval.value());
 		hlda.setProgressDisplay(showProgress.value());
 
 		// Initialize random number generator

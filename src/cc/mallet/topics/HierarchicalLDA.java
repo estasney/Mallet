@@ -24,272 +24,284 @@ public class HierarchicalLDA implements Serializable {
 	With Gamma = 10 : ~ 0.9 Probability of adding a new child
 	 */
 
-	InstanceList instances;
-	InstanceList testing;
+    InstanceList instances;
+    InstanceList testing;
 
-	NCRPNode rootNode, node;
+    NCRPNode rootNode, node;
 
-	int numLevels;
-	int numDocuments;
-	int numTypes;
-
-
-	double[] alpha; // smoothing on topic distributions. A Document-Topic Prior
-	double[] gamma; // "imaginary" customers at the next, as yet unused table
-	double[] eta;   // smoothing on word distributions. A Topic-Word Prior
-	double[] etaSum;
-
-	int[][] levels; // indexed < doc, token >
-	NCRPNode[] documentLeaves; // currently selected path (ie leaf node) through the NCRP tree
-
-	int totalNodes = 0;
-	int[] levelTotalNodes;
-
-	String stateFile = "hlda.state";
-
-	Randoms random;
-
-	boolean showProgress = true;
-
-	int displayTopicsInterval = 50;
-	int numWordsToDisplay = 10;
-
-	public HierarchicalLDA() {
-		alpha = new double[]{};
-		gamma = new double[]{};
-		eta = new double[]{};
-		etaSum = new double[]{};
-	}
-
-	public void setAlpha(double[] alpha) {
-		this.alpha = alpha;
-	}
-
-	public void setGamma(double[] gamma) {
-		this.gamma = gamma;
-	}
-
-	public void setEta(double[] eta) {
-		this.eta = eta;
-	}
-
-	public void setStateFile(String stateFile) {
-		this.stateFile = stateFile;
-	}
-
-	public void setTopicDisplay(int interval, int words) {
-		displayTopicsInterval = interval;
-		numWordsToDisplay = words;
-	}
-
-	/**
-	 * This parameter determines whether the sampler outputs
-	 * shows progress by outputting a character after every iteration.
-	 */
-	public void setProgressDisplay(boolean showProgress) {
-		this.showProgress = showProgress;
-	}
-
-	public void initialize(InstanceList instances, InstanceList testing,
-						   int numLevels, Randoms random) {
-		this.instances = instances;
-		this.testing = testing;
-		this.numLevels = numLevels;
-		this.levelTotalNodes = new int[numLevels];
-		this.random = random;
-		this.etaSum = new double[numLevels];
+    int numLevels;
+    int numDocuments;
+    int numTypes;
 
 
-		if (!(instances.get(0).getData() instanceof FeatureSequence)) {
-			throw new IllegalArgumentException("Input must be a FeatureSequence, using the --feature-sequence option when importing data, for example");
-		}
+    double[] alpha; // smoothing on topic distributions. A Document-Topic Prior
+    double[] gamma; // "imaginary" customers at the next, as yet unused table
+    double[] eta;   // smoothing on word distributions. A Topic-Word Prior
+    double[] etaSum;
 
-		numDocuments = instances.size();
-		numTypes = instances.getDataAlphabet().size();
+    int[][] levels; // indexed < doc, token >
+    NCRPNode[] documentLeaves; // currently selected path (ie leaf node) through the NCRP tree
 
-		for (int i = 0; i < this.numLevels; i++) {
-			etaSum[i] = this.eta[i] * numTypes;
-		}
+    int totalNodes = 0;
+    int[] levelTotalNodes;
 
-		// Initialize a single path
+    String stateFile = "hlda.state";
 
-		NCRPNode[] path = new NCRPNode[numLevels];
+    Randoms random;
 
-		rootNode = new NCRPNode(numTypes);
+    boolean showProgress = true;
 
-		levels = new int[numDocuments][];
-		documentLeaves = new NCRPNode[numDocuments];
+    int displayTopicsInterval = 50;
+    int numWordsToDisplay = 10;
+    int displayNodeCountsInterval = 1;
 
-		// Initialize and fill the topic pointer arrays for 
-		//  every document. Set everything to the single path that 
-		//  we added earlier.
-		for (int doc = 0; doc < numDocuments; doc++) {
-			FeatureSequence fs = (FeatureSequence) instances.get(doc).getData();
-			int seqLen = fs.getLength();
+    public HierarchicalLDA() {
+        alpha = new double[]{};
+        gamma = new double[]{};
+        eta = new double[]{};
+        etaSum = new double[]{};
+    }
 
-			// assign first step as rootnode
-			path[0] = rootNode;
-			rootNode.customers++;
-			for (int level = 1; level < numLevels; level++) {
-				path[level] = path[level - 1].select();
-				path[level].customers++;
-			}
-			node = path[numLevels - 1];
+    public void setAlpha(double[] alpha) {
+        this.alpha = alpha;
+    }
 
-			// fill levels[doc_idx] with 0's with length of unique tokens
-			levels[doc] = new int[seqLen];
-			documentLeaves[doc] = node;
+    public void setGamma(double[] gamma) {
+        this.gamma = gamma;
+    }
 
-			for (int token = 0; token < seqLen; token++) {
-				int type = fs.getIndexAtPosition(token);
-				levels[doc][token] = random.nextInt(numLevels);
-				node = path[levels[doc][token]];
-				node.totalTokens++;
-				node.typeCounts[type]++;
-			}
-		}
-	}
+    public void setEta(double[] eta) {
+        this.eta = eta;
+    }
 
-	public void countNodeLevels(NCRPNode node, int level) {
-		levelTotalNodes[level]+= node.children.size();
-		for (NCRPNode child: node.children) {
-			countNodeLevels(child, child.level);
-		}
-	}
+    public void setStateFile(String stateFile) {
+        this.stateFile = stateFile;
+    }
 
-	public void countNodeLevels(NCRPNode node) {
-		// node counts it children and recursively calls countNodeLevels on its children
-		levelTotalNodes[0] = 1;
-		levelTotalNodes[1] = node.children.size();
+    public void setTopicDisplay(int interval, int words, int nodeInterval) {
+        displayTopicsInterval = interval;
+        numWordsToDisplay = words;
+        displayNodeCountsInterval = nodeInterval;
+    }
 
-		for (int i = 2; i< numLevels; i++) {
-			levelTotalNodes[i] = 0;
-		};
+    /**
+     * This parameter determines whether the sampler outputs
+     * shows progress by outputting a character after every iteration.
+     */
+    public void setProgressDisplay(boolean showProgress) {
+        this.showProgress = showProgress;
+    }
 
-		for (NCRPNode child : node.children) {
-			countNodeLevels(child, child.level);
-		}
-	}
+    public void initialize(InstanceList instances, InstanceList testing,
+                           int numLevels, Randoms random) {
+        this.instances = instances;
+        this.testing = testing;
+        this.numLevels = numLevels;
+        this.levelTotalNodes = new int[numLevels];
+        this.random = random;
+        this.etaSum = new double[numLevels];
 
-	public void estimate(int numIterations) {
-		for (int iteration = 1; iteration <= numIterations; iteration++) {
-			for (int doc = 0; doc < numDocuments; doc++) {
-				samplePath(doc, iteration);
-			}
-			for (int doc = 0; doc < numDocuments; doc++) {
-				sampleTopics(doc);
-			}
 
-			countNodeLevels(rootNode);
+        if (!(instances.get(0).getData() instanceof FeatureSequence)) {
+            throw new IllegalArgumentException("Input must be a FeatureSequence, using the --feature-sequence option when importing data, for example");
+        }
 
-			if (iteration % displayTopicsInterval == 0) {
-				printNodes();
-				System.out.println(Arrays.toString(levelTotalNodes));
-			}
+        numDocuments = instances.size();
+        numTypes = instances.getDataAlphabet().size();
 
-			if (showProgress) {
-				System.out.print(".");
-				if (iteration % 50 == 0) {
-					System.out.println(" " + iteration);
-				}
-			}
-		}
-	}
+        for (int i = 0; i < this.numLevels; i++) {
+            etaSum[i] = this.eta[i] * numTypes;
+        }
 
-	public void samplePath(int doc, int iteration) {
-		NCRPNode[] path = new NCRPNode[numLevels];
-		NCRPNode node;
-		int level, token, type, topicCount;
+        // Initialize a single path
 
-		double weight, levelEta, levelEtaSum;
+        NCRPNode[] path = new NCRPNode[numLevels];
 
-		node = documentLeaves[doc];
-		for (level = numLevels - 1; level >= 0; level--) {
-			path[level] = node;
-			node = node.parent;
-		}
+        rootNode = new NCRPNode(numTypes);
 
-		documentLeaves[doc].dropPath();
+        levels = new int[numDocuments][];
+        documentLeaves = new NCRPNode[numDocuments];
 
-		ObjectDoubleHashMap<NCRPNode> nodeWeights =
-				new ObjectDoubleHashMap<NCRPNode>();
+        // Initialize and fill the topic pointer arrays for
+        //  every document. Set everything to the single path that
+        //  we added earlier.
+        for (int doc = 0; doc < numDocuments; doc++) {
+            FeatureSequence fs = (FeatureSequence) instances.get(doc).getData();
+            int seqLen = fs.getLength();
 
-		// Calculate p(c_m | c_{-m})
-		calculateNCRP(nodeWeights, rootNode, 0.0);
+            // assign first step as rootnode
+            path[0] = rootNode;
+            rootNode.customers++;
+            for (int level = 1; level < numLevels; level++) {
+                path[level] = path[level - 1].select();
+                path[level].customers++;
+            }
+            node = path[numLevels - 1];
 
-		// Add weights for p(w_m | c, w_{-m}, z)
+            // fill levels[doc_idx] with 0's with length of unique tokens
+            levels[doc] = new int[seqLen];
+            documentLeaves[doc] = node;
 
-		// The path may have no further customers and therefore
-		//  be unavailable, but it should still exist since we haven't
-		//  reset documentLeaves[doc] yet...
+            for (int token = 0; token < seqLen; token++) {
+                int type = fs.getIndexAtPosition(token);
+                levels[doc][token] = random.nextInt(numLevels);
+                node = path[levels[doc][token]];
+                node.totalTokens++;
+                node.typeCounts[type]++;
+            }
+        }
+    }
 
-		IntIntHashMap[] typeCounts = new IntIntHashMap[numLevels];
+    public void countNodeLevels(NCRPNode node, int level) {
+        levelTotalNodes[level] += 1;
+        for (NCRPNode child : node.children) {
+            countNodeLevels(child, child.level);
+        }
+    }
 
-		int[] docLevels;
+    public void countNodeLevels(NCRPNode node, boolean reset) {
+        // node counts it children and recursively calls countNodeLevels on its children
+        if (reset) {
+            for (int i = 1; i < numLevels; i++) {
+                levelTotalNodes[i] = 0;
+            }
 
-		for (level = 0; level < numLevels; level++) {
-			typeCounts[level] = new IntIntHashMap();
-		}
+        }
 
-		docLevels = levels[doc];
-		FeatureSequence fs = (FeatureSequence) instances.get(doc).getData();
+        for (NCRPNode child : node.children) {
+            countNodeLevels(child, child.level);
+        }
+    }
 
-		// Save the counts of every word at each level, and remove
-		//  counts from the current path
+    public void estimate(int numIterations) {
+        for (int iteration = 1; iteration <= numIterations; iteration++) {
+            for (int doc = 0; doc < numDocuments; doc++) {
+                samplePath(doc, iteration);
+            }
+            for (int doc = 0; doc < numDocuments; doc++) {
+                sampleTopics(doc);
+            }
 
-		for (token = 0; token < docLevels.length; token++) {
-			level = docLevels[token];
-			type = fs.getIndexAtPosition(token);
+            countNodeLevels(rootNode, true);
 
-			if (!typeCounts[level].containsKey(type)) {
-				typeCounts[level].put(type, 1);
-			} else {
-				typeCounts[level].addTo(type, 1);
-			}
+            if (iteration % displayTopicsInterval == 0) {
+                printNodes();
+            }
 
-			path[level].typeCounts[type]--;
-			assert (path[level].typeCounts[type] >= 0);
+            if (iteration % displayNodeCountsInterval == 0) {
+                printNodeCounts();
+            }
 
-			path[level].totalTokens--;
-			assert (path[level].totalTokens >= 0);
-		}
+            if (showProgress) {
+                System.out.print(".");
+                if (iteration % 50 == 0) {
+                    System.out.println(" " + iteration);
+                }
+            }
+        }
+    }
 
-		// Calculate the weight for a new path at a given level.
-		double[] newTopicWeights = new double[numLevels];
-		for (level = 1; level < numLevels; level++) {  // Skip the root...
-			int totalTokens = 0;
-			levelEta = eta[level] / levelTotalNodes[level];
-			levelEtaSum = etaSum[level] / levelTotalNodes[level];
+    private void printNodeCounts() {
+        System.out.println("**Node Counts**");
+        for (int level = 0; level < numLevels; level++) {
+            System.out.println("Level " + level + ": " + levelTotalNodes[level]);
+        }
+    }
 
-			for (IntIntCursor keyVal : typeCounts[level]) {
-				for (int i = 0; i < keyVal.value; i++) {
-					newTopicWeights[level] +=
-							Math.log((levelEta + i) / (levelEtaSum + totalTokens));
-					totalTokens++;
-				}
-			}
+    public void samplePath(int doc, int iteration) {
+        NCRPNode[] path = new NCRPNode[numLevels];
+        NCRPNode node;
+        int level, token, type, topicCount;
+
+        double weight, levelEta, levelEtaSum;
+
+        node = documentLeaves[doc];
+        for (level = numLevels - 1; level >= 0; level--) {
+            path[level] = node;
+            node = node.parent;
+        }
+
+        documentLeaves[doc].dropPath();
+
+        ObjectDoubleHashMap<NCRPNode> nodeWeights =
+                new ObjectDoubleHashMap<NCRPNode>();
+
+        // Calculate p(c_m | c_{-m})
+        calculateNCRP(nodeWeights, rootNode, 0.0);
+
+        // Add weights for p(w_m | c, w_{-m}, z)
+
+        // The path may have no further customers and therefore
+        //  be unavailable, but it should still exist since we haven't
+        //  reset documentLeaves[doc] yet...
+
+        IntIntHashMap[] typeCounts = new IntIntHashMap[numLevels];
+
+        int[] docLevels;
+
+        for (level = 0; level < numLevels; level++) {
+            typeCounts[level] = new IntIntHashMap();
+        }
+
+        docLevels = levels[doc];
+        FeatureSequence fs = (FeatureSequence) instances.get(doc).getData();
+
+        // Save the counts of every word at each level, and remove
+        //  counts from the current path
+
+        for (token = 0; token < docLevels.length; token++) {
+            level = docLevels[token];
+            type = fs.getIndexAtPosition(token);
+
+            if (!typeCounts[level].containsKey(type)) {
+                typeCounts[level].put(type, 1);
+            } else {
+                typeCounts[level].addTo(type, 1);
+            }
+
+            path[level].typeCounts[type]--;
+            assert (path[level].typeCounts[type] >= 0);
+
+            path[level].totalTokens--;
+            assert (path[level].totalTokens >= 0);
+        }
+
+        // Calculate the weight for a new path at a given level.
+        double[] newTopicWeights = new double[numLevels];
+        for (level = 1; level < numLevels; level++) {  // Skip the root...
+            int totalTokens = 0;
+            levelEta = eta[level] / levelTotalNodes[level];
+            levelEtaSum = etaSum[level] / levelTotalNodes[level];
+
+            for (IntIntCursor keyVal : typeCounts[level]) {
+                for (int i = 0; i < keyVal.value; i++) {
+                    newTopicWeights[level] +=
+                            Math.log((levelEta + i) / (levelEtaSum + totalTokens));
+                    totalTokens++;
+                }
+            }
 
 //			if (iteration > 1) { System.out.println(newTopicWeights[level]); }
-		}
+        }
 
-		calculateWordLikelihood(nodeWeights, rootNode, 0.0, typeCounts, newTopicWeights, 0, iteration);
+        calculateWordLikelihood(nodeWeights, rootNode, 0.0, typeCounts, newTopicWeights, 0, iteration);
 
-		Object[] objectArray = nodeWeights.keys().toArray();
-		NCRPNode[] nodes = Arrays.copyOf(objectArray, objectArray.length, NCRPNode[].class);
-		double[] weights = new double[nodes.length];
-		double sum = 0.0;
-		double max = Double.NEGATIVE_INFINITY;
+        Object[] objectArray = nodeWeights.keys().toArray();
+        NCRPNode[] nodes = Arrays.copyOf(objectArray, objectArray.length, NCRPNode[].class);
+        double[] weights = new double[nodes.length];
+        double sum = 0.0;
+        double max = Double.NEGATIVE_INFINITY;
 
-		// To avoid underflow, we're using log weights and normalizing the node weights so that 
-		//  the largest weight is always 1.
-		for (int i = 0; i < nodes.length; i++) {
-			if (nodeWeights.get(nodes[i]) > max) {
-				max = nodeWeights.get(nodes[i]);
-			}
-		}
+        // To avoid underflow, we're using log weights and normalizing the node weights so that
+        //  the largest weight is always 1.
+        for (int i = 0; i < nodes.length; i++) {
+            if (nodeWeights.get(nodes[i]) > max) {
+                max = nodeWeights.get(nodes[i]);
+            }
+        }
 
-		for (int i = 0; i < nodes.length; i++) {
-			weights[i] = Math.exp(nodeWeights.get(nodes[i]) - max);
+        for (int i = 0; i < nodes.length; i++) {
+            weights[i] = Math.exp(nodeWeights.get(nodes[i]) - max);
 
 
 //			  if (iteration > 1) {
@@ -301,70 +313,68 @@ public class HierarchicalLDA implements Serializable {
 //			  }
 
 
-			sum += weights[i];
-		}
+            sum += weights[i];
+        }
 
-		//if (iteration > 1) {System.out.println();}
+        //if (iteration > 1) {System.out.println();}
 //		System.out.println(Arrays.toString(weights));
-		node = nodes[random.nextDiscrete(weights, sum)];
+        node = nodes[random.nextDiscrete(weights, sum)];
 
-		// If we have picked an internal node, we need to 
-		//  add a new path.
-		if (!node.isLeaf()) {
-			node = node.getNewLeaf();
-		}
+        // If we have picked an internal node, we need to
+        //  add a new path.
+        if (!node.isLeaf()) {
+            node = node.getNewLeaf();
+        }
 
-		node.addPath();
-		documentLeaves[doc] = node;
+        node.addPath();
+        documentLeaves[doc] = node;
 
-		for (level = numLevels - 1; level >= 0; level--) {
+        for (level = numLevels - 1; level >= 0; level--) {
 
-			for (IntIntCursor keyVal : typeCounts[level]) {
-				node.typeCounts[keyVal.key] += keyVal.value;
-				node.totalTokens += keyVal.value;
-			}
+            for (IntIntCursor keyVal : typeCounts[level]) {
+                node.typeCounts[keyVal.key] += keyVal.value;
+                node.totalTokens += keyVal.value;
+            }
 
-			node = node.parent;
-		}
-	}
+            node = node.parent;
+        }
+    }
 
-	public void calculateNCRP(ObjectDoubleHashMap<NCRPNode> nodeWeights,
-							  NCRPNode node, double weight) {
-		double levelGamma;
-		for (NCRPNode child : node.children) {
-//			levelGamma = gamma[child.level] / levelTotalNodes[child.level];
-			levelGamma = gamma[child.level];
-
+    public void calculateNCRP(ObjectDoubleHashMap<NCRPNode> nodeWeights,
+                              NCRPNode node, double weight) {
+        double levelGamma;
+		levelGamma = gamma[node.level] * Math.log(levelTotalNodes[node.level] + 1);
+        for (NCRPNode child : node.children) {
+			levelGamma = gamma[child.level] * Math.log(levelTotalNodes[child.level] + 1);
 			calculateNCRP(nodeWeights, child,
-					weight + Math.log((double) child.customers / (node.customers + levelGamma)));
-		}
-//		levelGamma = gamma[node.level] / levelTotalNodes[node.level];
-		levelGamma = gamma[node.level];
-		nodeWeights.put(node, weight + Math.log(levelGamma / (node.customers + levelGamma)));
-	}
+                    weight + Math.log((double) child.customers / (node.customers + levelGamma)));
+        }
 
-	public void calculateWordLikelihood(ObjectDoubleHashMap<NCRPNode> nodeWeights,
-										NCRPNode node, double weight,
-										IntIntHashMap[] typeCounts, double[] newTopicWeights,
-										int level, int iteration) {
+        nodeWeights.put(node, weight + Math.log(levelGamma / (node.customers + levelGamma)));
+    }
 
-		// First calculate the likelihood of the words at this level, given
-		//  this topic.
-		double nodeWeight = 0.0;
-		int totalTokens = 0;
-		double levelEta, levelEtaSum;
+    public void calculateWordLikelihood(ObjectDoubleHashMap<NCRPNode> nodeWeights,
+                                        NCRPNode node, double weight,
+                                        IntIntHashMap[] typeCounts, double[] newTopicWeights,
+                                        int level, int iteration) {
 
-		levelEta = eta[node.level] / levelTotalNodes[node.level];
-		levelEtaSum = etaSum[node.level] / levelTotalNodes[node.level];
-		//if (iteration > 1) { System.out.println(level + " " + nodeWeight); }
+        // First calculate the likelihood of the words at this level, given
+        //  this topic.
+        double nodeWeight = 0.0;
+        int totalTokens = 0;
+        double levelEta, levelEtaSum;
 
-		for (IntIntCursor keyVal : typeCounts[level]) {
+        levelEta = eta[node.level] / levelTotalNodes[node.level];
+        levelEtaSum = etaSum[node.level] / levelTotalNodes[node.level];
+        //if (iteration > 1) { System.out.println(level + " " + nodeWeight); }
 
-			for (int i = 0; i < keyVal.value; i++) {
-				nodeWeight +=
-						Math.log((levelEta + node.typeCounts[keyVal.key] + i) /
-								(levelEtaSum + node.totalTokens + totalTokens));
-				totalTokens++;
+        for (IntIntCursor keyVal : typeCounts[level]) {
+
+            for (int i = 0; i < keyVal.value; i++) {
+                nodeWeight +=
+                        Math.log((levelEta + node.typeCounts[keyVal.key] + i) /
+                                (levelEtaSum + node.totalTokens + totalTokens));
+                totalTokens++;
 
 				/*
 				  if (iteration > 1) {
@@ -374,618 +384,630 @@ public class HierarchicalLDA implements Serializable {
 				  }
 				*/
 
-			}
-		}
+            }
+        }
 
-		//if (iteration > 1) { System.out.println(level + " " + nodeWeight); }
+        //if (iteration > 1) { System.out.println(level + " " + nodeWeight); }
 
-		// Propagate that weight to the child nodes
+        // Propagate that weight to the child nodes
 
-		for (NCRPNode child : node.children) {
-			calculateWordLikelihood(nodeWeights, child, weight + nodeWeight,
-					typeCounts, newTopicWeights, level + 1, iteration);
-		}
+        for (NCRPNode child : node.children) {
+            calculateWordLikelihood(nodeWeights, child, weight + nodeWeight,
+                    typeCounts, newTopicWeights, level + 1, iteration);
+        }
 
-		// Finally, if this is an internal node, add the weight of
-		//  a new path
+        // Finally, if this is an internal node, add the weight of
+        //  a new path
 
-		level++;
-		while (level < numLevels) {
-			nodeWeight += newTopicWeights[level];
-			level++;
-		}
+        level++;
+        while (level < numLevels) {
+            nodeWeight += newTopicWeights[level];
+            level++;
+        }
 
-		nodeWeights.addTo(node, nodeWeight);
+        nodeWeights.addTo(node, nodeWeight);
 
-	}
+    }
 
-	/**
-	 * Propagate a topic weight to a node and all its children.
-	 * weight is assumed to be a log.
-	 */
-	public void propagateTopicWeight(ObjectDoubleHashMap<NCRPNode> nodeWeights,
-									 NCRPNode node, double weight) {
-		if (!nodeWeights.containsKey(node)) {
-			// calculating the NCRP prior proceeds from the
-			//  root down (ie following child links),
-			//  but adding the word-topic weights comes from
-			//  the bottom up, following parent links and then 
-			//  child links. It's possible that the leaf node may have
-			//  been removed just prior to this round, so the current
-			//  node may not have an NCRP weight. If so, it's not 
-			//  going to be sampled anyway, so ditch it.
-			return;
-		}
+    /**
+     * Propagate a topic weight to a node and all its children.
+     * weight is assumed to be a log.
+     */
+    public void propagateTopicWeight(ObjectDoubleHashMap<NCRPNode> nodeWeights,
+                                     NCRPNode node, double weight) {
+        if (!nodeWeights.containsKey(node)) {
+            // calculating the NCRP prior proceeds from the
+            //  root down (ie following child links),
+            //  but adding the word-topic weights comes from
+            //  the bottom up, following parent links and then
+            //  child links. It's possible that the leaf node may have
+            //  been removed just prior to this round, so the current
+            //  node may not have an NCRP weight. If so, it's not
+            //  going to be sampled anyway, so ditch it.
+            return;
+        }
 
-		for (NCRPNode child : node.children) {
-			propagateTopicWeight(nodeWeights, child, weight);
-		}
+        for (NCRPNode child : node.children) {
+            propagateTopicWeight(nodeWeights, child, weight);
+        }
 
-		nodeWeights.addTo(node, weight);
-	}
+        nodeWeights.addTo(node, weight);
+    }
 
-	public void sampleTopics(int doc) {
-		FeatureSequence fs = (FeatureSequence) instances.get(doc).getData();
-		int seqLen = fs.getLength();
-		int[] docLevels = levels[doc];
-		NCRPNode[] path = new NCRPNode[numLevels];
-		NCRPNode node;
-		int[] levelCounts = new int[numLevels];
-		int type, token, level;
-		double sum;
-		double levelAlpha, levelEta, levelEtaSum;
+    public void sampleTopics(int doc) {
+        FeatureSequence fs = (FeatureSequence) instances.get(doc).getData();
+        int seqLen = fs.getLength();
+        int[] docLevels = levels[doc];
+        NCRPNode[] path = new NCRPNode[numLevels];
+        NCRPNode node;
+        int[] levelCounts = new int[numLevels];
+        int type, token, level;
+        double sum;
+        double levelAlpha, levelEta, levelEtaSum;
 
-		// Get the leaf
-		node = documentLeaves[doc];
-		for (level = numLevels - 1; level >= 0; level--) {
-			path[level] = node;
-			node = node.parent;
-		}
+        // Get the leaf
+        node = documentLeaves[doc];
+        for (level = numLevels - 1; level >= 0; level--) {
+            path[level] = node;
+            node = node.parent;
+        }
 
-		double[] levelWeights = new double[numLevels];
+        double[] levelWeights = new double[numLevels];
 
-		// Initialize level counts
-		for (token = 0; token < seqLen; token++) {
-			levelCounts[docLevels[token]]++;
-		}
+        // Initialize level counts
+        for (token = 0; token < seqLen; token++) {
+            levelCounts[docLevels[token]]++;
+        }
 
-		for (token = 0; token < seqLen; token++) {
-			type = fs.getIndexAtPosition(token);
+        for (token = 0; token < seqLen; token++) {
+            type = fs.getIndexAtPosition(token);
 
-			levelCounts[docLevels[token]]--;
-			node = path[docLevels[token]];
-			node.typeCounts[type]--;
-			node.totalTokens--;
-
-
-			sum = 0.0;
-			for (level = 0; level < numLevels; level++) {
-				levelAlpha = alpha[level] / levelTotalNodes[level];
-				levelEta = eta[level] / levelTotalNodes[level];
-				levelEtaSum = etaSum[level] / levelTotalNodes[level];
-
-				levelWeights[level] =
-						(levelAlpha + levelCounts[level]) *
-								(levelEta + path[level].typeCounts[type]) /
-								(levelEtaSum + path[level].totalTokens);
-				sum += levelWeights[level];
-			}
-			level = random.nextDiscrete(levelWeights, sum);
-
-			docLevels[token] = level;
-			levelCounts[docLevels[token]]++;
-			node = path[level];
-			node.typeCounts[type]++;
-			node.totalTokens++;
-		}
-	}
-
-	/**
-	 * Writes the current sampling state to the file specified in <code>stateFile</code>.
-	 */
-	public void printState() throws IOException, FileNotFoundException {
-		printState(new PrintWriter(new BufferedWriter(new FileWriter(stateFile))));
-	}
-
-	/**
-	 * Write a csv file describing the current sampling state.
-	 */
-	public void printState(PrintWriter out) throws IOException {
-		int doc = 0;
-		StringBuffer header = new StringBuffer();
-		int headerLevel;
-		for (headerLevel = 0; headerLevel <= numLevels - 1; headerLevel++){
-			header.append("Level ").append(headerLevel).append(",");
-		}
-
-		header.append("Node_ID,Token,Token_Level,Token_Weight");
-		out.println(header);
-
-		// instances are documents, get all tokens present in all documents
-		Alphabet alphabet = instances.getDataAlphabet();
-
-		// for document in documents...
-		for (Instance instance : instances) {
-
-			FeatureSequence fs = (FeatureSequence) instance.getData();
-			int seqLen = fs.getLength();
-			// get array of levels that each token in document is assigned
-			int[] docLevels = levels[doc];
-			NCRPNode node;
-			NCRPNode childNode;
-			int type, token, level;
-			double tokenWeight;
-
-			StringBuffer path = new StringBuffer();
-
-			// Start with the leaf, and build a string describing the path for this doc
-			// documentLeaves are all at lowest level
-			node = documentLeaves[doc];
-
-			// this is the lowest level node
-			childNode = documentLeaves[doc];
-
-			// this describes the hierarchy of the nodes
-			for (level = numLevels - 1; level >= 0; level--) {
-				path.insert(0, "," + node.nodeID);
-				node = node.parent;
-			}
-
-			path.replace(0, 1, "");
-			path.append(",");
-
-			List nodeWeights = childNode.getTopWeights(seqLen);
-
-			for (token = 0; token < seqLen; token++) {
-				type = fs.getIndexAtPosition(token);
-				level = docLevels[token];
-				tokenWeight = (double) nodeWeights.get(token);
-				// The "" just tells java we're not trying to add a string and an int
-				Object alphaObject = alphabet.lookupObject(type);
-				String alphaString = alphaObject.toString();
-				String tokenDataSafe = this.escapeSpecialCharacters(alphaString);
-				String tokenData = path + "" + type + "," + tokenDataSafe + "," + level + "," + tokenWeight;
-
-				out.println(tokenData);
-			}
-
-			doc++;
-		}
-	}
-
-	public String escapeSpecialCharacters(String data) {
-		String escapedData = data.replaceAll("\\R", " ");
-		if (data.contains(",") || data.contains("\"") || data.contains("'")) {
-			data = data.replace("\"", "\"\"");
-			escapedData = "\"" + data + "\"";
-		}
-		return escapedData;
-	}
-
-	public void printEdgeList(String fp) throws IOException {
-		PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter(fp)));
-		out.write("parent,child,child_id,type,child_weight,parent_weight,parent_level" + "\n");
-
-		// Create token 2 id mapping
-		Map token2Id = new HashMap();
+            levelCounts[docLevels[token]]--;
+            node = path[docLevels[token]];
+            node.typeCounts[type]--;
+            node.totalTokens--;
 
 
-		Alphabet alphabet = instances.getDataAlphabet();
-		ArrayList alphabetArray = alphabet.entries;
+            sum = 0.0;
+            for (level = 0; level < numLevels; level++) {
+                levelAlpha = alpha[level] / levelTotalNodes[level];
+                levelEta = eta[level] / levelTotalNodes[level];
+                levelEtaSum = etaSum[level] / levelTotalNodes[level];
 
-		for(int i = 0; i < alphabetArray.size(); i++) {
+                levelWeights[level] =
+                        (levelAlpha + levelCounts[level]) *
+                                (levelEta + path[level].typeCounts[type]) /
+                                (levelEtaSum + path[level].totalTokens);
+                sum += levelWeights[level];
+            }
+            level = random.nextDiscrete(levelWeights, sum);
 
-			// Prevent token id collisions with nodes
-			String token = (String) alphabetArray.get(i);
-			int tokenId = i + this.totalNodes;
-			token2Id.put(token, tokenId);
-		}
+            docLevels[token] = level;
+            levelCounts[docLevels[token]]++;
+            node = path[level];
+            node.typeCounts[type]++;
+            node.totalTokens++;
+        }
+    }
 
-		printNodeEdge(rootNode, out, token2Id);
-		out.close();
-	}
+    /**
+     * Writes the current sampling state to the file specified in <code>stateFile</code>.
+     */
+    public void printState() throws IOException, FileNotFoundException {
+        printState(new PrintWriter(new BufferedWriter(new FileWriter(stateFile))));
+    }
 
-	public void printTopicNodes(String fp) throws IOException {
-		PrintWriter out1 = new PrintWriter(new BufferedWriter(new FileWriter(fp)));
-		out1.write("Node_ID,Node_Level,Word,Weight" + "\n");
-		printNode(rootNode, 0, true, true, out1);
-		out1.close();
-	}
+    /**
+     * Write a csv file describing the current sampling state.
+     */
+    public void printState(PrintWriter out) throws IOException {
+        int doc = 0;
+        StringBuffer header = new StringBuffer();
+        int headerLevel;
+        for (headerLevel = 0; headerLevel <= numLevels - 1; headerLevel++) {
+            header.append("Level ").append(headerLevel).append(",");
+        }
 
-	public void printNodeEdge(NCRPNode node, PrintWriter out, Map token2id) {
-		// alphabet is used to retrieve token ids
-		// get all words with a weight greater than 0
-		int nnz = Arrays.stream(node.typeCounts).filter(x -> x > 0).toArray().length;
-		String topwords = node.getTopWords(nnz, true);
-		int nodeLevel = node.level;
-		String[] tempArray;
+        header.append("Node_ID,Token,Token_Level,Token_Weight");
+        out.println(header);
 
-		String delimiter = " ";
-		tempArray = topwords.split(delimiter);
-		/*
-		* Print this nodes top words and node data
-		* "parent,child,child_id,child_type,child_weight,parent_weight,parent_level"
-		* */
-		for (String s : tempArray) {
+        // instances are documents, get all tokens present in all documents
+        Alphabet alphabet = instances.getDataAlphabet();
 
-			String[] lineTempArray;
-			lineTempArray = s.split(":");
-			String tokenSafe = this.escapeSpecialCharacters(lineTempArray[0]);
-			int tokenId = (int) token2id.get(lineTempArray[0]);
-			String csvString = node.nodeID + "," + tokenSafe + "," + tokenId + ",word," + lineTempArray[1] + "," + node.customers + "," + nodeLevel;
-			if (out == null) {
-				System.out.println(csvString);
-			} else {
-				out.println(csvString);
-			}
+        // for document in documents...
+        for (Instance instance : instances) {
 
-		}
+            FeatureSequence fs = (FeatureSequence) instance.getData();
+            int seqLen = fs.getLength();
+            // get array of levels that each token in document is assigned
+            int[] docLevels = levels[doc];
+            NCRPNode node;
+            NCRPNode childNode;
+            int type, token, level;
+            double tokenWeight;
+
+            StringBuffer path = new StringBuffer();
+
+            // Start with the leaf, and build a string describing the path for this doc
+            // documentLeaves are all at lowest level
+            node = documentLeaves[doc];
+
+            // this is the lowest level node
+            childNode = documentLeaves[doc];
+
+            // this describes the hierarchy of the nodes
+            for (level = numLevels - 1; level >= 0; level--) {
+                path.insert(0, "," + node.nodeID);
+                node = node.parent;
+            }
+
+            path.replace(0, 1, "");
+            path.append(",");
+
+            List nodeWeights = childNode.getTopWeights(seqLen);
+
+            for (token = 0; token < seqLen; token++) {
+                type = fs.getIndexAtPosition(token);
+                level = docLevels[token];
+                tokenWeight = (double) nodeWeights.get(token);
+                // The "" just tells java we're not trying to add a string and an int
+                Object alphaObject = alphabet.lookupObject(type);
+                String alphaString = alphaObject.toString();
+                String tokenDataSafe = this.escapeSpecialCharacters(alphaString);
+                String tokenData = path + "" + type + "," + tokenDataSafe + "," + level + "," + tokenWeight;
+
+                out.println(tokenData);
+            }
+
+            doc++;
+        }
+    }
+
+    public String escapeSpecialCharacters(String data) {
+        String escapedData = data.replaceAll("\\R", " ");
+        if (data.contains(",") || data.contains("\"") || data.contains("'")) {
+            data = data.replace("\"", "\"\"");
+            escapedData = "\"" + data + "\"";
+        }
+        return escapedData;
+    }
+
+    public void printEdgeList(String fp) throws IOException {
+        PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter(fp)));
+        out.write("parent,child,child_id,type,child_weight,parent_weight,parent_level" + "\n");
+
+        // Create token 2 id mapping
+        Map token2Id = new HashMap();
+
+
+        Alphabet alphabet = instances.getDataAlphabet();
+        ArrayList alphabetArray = alphabet.entries;
+
+        for (int i = 0; i < alphabetArray.size(); i++) {
+
+            // Prevent token id collisions with nodes
+            String token = (String) alphabetArray.get(i);
+            int tokenId = i + this.totalNodes;
+            token2Id.put(token, tokenId);
+        }
+
+        printNodeEdge(rootNode, out, token2Id);
+        out.close();
+    }
+
+    public void printTopicNodes(String fp) throws IOException {
+        PrintWriter out1 = new PrintWriter(new BufferedWriter(new FileWriter(fp)));
+        out1.write("Node_ID,Node_Level,Word,Weight" + "\n");
+        printNode(rootNode, 0, true, true, out1);
+        out1.close();
+    }
+
+    public void printNodeEdge(NCRPNode node, PrintWriter out, Map token2id) {
+        // alphabet is used to retrieve token ids
+        // get all words with a weight greater than 0
+        int nnz = Arrays.stream(node.typeCounts).filter(x -> x > 0).toArray().length;
+        String topwords = node.getTopWords(nnz, true);
+        int nodeLevel = node.level;
+        String[] tempArray;
+
+        String delimiter = " ";
+        tempArray = topwords.split(delimiter);
+        /*
+         * Print this nodes top words and node data
+         * "parent,child,child_id,child_type,child_weight,parent_weight,parent_level"
+         * */
+        for (String s : tempArray) {
+
+            String[] lineTempArray;
+            lineTempArray = s.split(":");
+            String tokenSafe = this.escapeSpecialCharacters(lineTempArray[0]);
+            int tokenId = (int) token2id.get(lineTempArray[0]);
+            String csvString = node.nodeID + "," + tokenSafe + "," + tokenId + ",word," + lineTempArray[1] + "," + node.customers + "," + nodeLevel;
+            if (out == null) {
+                System.out.println(csvString);
+            } else {
+                out.println(csvString);
+            }
+
+        }
 
 		/*
 		Print this nodes children
 		parent, child, type, weight
 		 */
-		for (int i = 0; i < node.children.size(); i++) {
-			int childId = node.children.get(i).nodeID;
-			int childCustomers = node.children.get(i).customers;
-			int childLevel = node.children.get(i).level;
-			String csvString = node.nodeID + "," + childId + "," + childId + ",node," + childCustomers + "," + node.customers + "," + node.level;
-			if (out == null) {
-				System.out.println(csvString);
-			} else {
-				out.println(csvString);
-			}
+        for (int i = 0; i < node.children.size(); i++) {
+            int childId = node.children.get(i).nodeID;
+            int childCustomers = node.children.get(i).customers;
+            int childLevel = node.children.get(i).level;
+            String csvString = node.nodeID + "," + childId + "," + childId + ",node," + childCustomers + "," + node.customers + "," + node.level;
+            if (out == null) {
+                System.out.println(csvString);
+            } else {
+                out.println(csvString);
+            }
 
-		}
+        }
 
-		for (NCRPNode child : node.children) {
-			printNodeEdge(child, out, token2id);
-		}
-	}
+        for (NCRPNode child : node.children) {
+            printNodeEdge(child, out, token2id);
+        }
+    }
 
-	public void printNodes() {
-		printNode(rootNode, 0, false, false, null);
-	}
+    public void printNodes() {
+        printNode(rootNode, 0, false, false, null);
+    }
 
-	public void printNodes(boolean withWeight) {
-		printNode(rootNode, 0, withWeight, false, null);
-	}
+    public void printNodes(boolean withWeight) {
+        printNode(rootNode, 0, withWeight, false, null);
+    }
 
-	public void printNode(NCRPNode node, int indent, boolean withWeight, boolean csvFormat, PrintWriter out) {
+    public void printNode(NCRPNode node, int indent, boolean withWeight, boolean csvFormat, PrintWriter out) {
 
-		String sepChar;
-		if (!csvFormat) {
-			sepChar = "  ";
-		} else {
-			sepChar = ",";
-		}
+        String sepChar;
+        if (!csvFormat) {
+            sepChar = "  ";
+        } else {
+            sepChar = ",";
+        }
 
-		StringBuffer path = new StringBuffer();
-		if (!csvFormat) {
-			for (int i = 0; i < indent; i++) {
-				path.append(sepChar);
-			}
-		}
-
-
-		if (!csvFormat) {
-			path.append("n_tokens: ").append(node.totalTokens).append("/n_customers: ").append(node.customers).append(" ");
-			path.append(node.getTopWords(numWordsToDisplay, withWeight));
-		} else {
-
-			// get an arraylist of Word, Weight
-			// make an edgelist
-			String topwords = node.getTopWords(numWordsToDisplay, withWeight);
-			String[] tempArray;
-
-			String delimiter = " ";
-			tempArray = topwords.split(delimiter);
-			for (String s : tempArray) {
-
-				String[] lineTempArray;
-				lineTempArray = s.split(":");
-				String tokenSafe = this.escapeSpecialCharacters(lineTempArray[0]);
-				String csvString = node.nodeID + "," + node.level + "," + tokenSafe + "," + lineTempArray[1];
-				if (out == null) {
-					System.out.println(csvString);
-				} else {
-					out.println(csvString);
-				}
-
-			}
-		}
+        StringBuffer path = new StringBuffer();
+        if (!csvFormat) {
+            for (int i = 0; i < indent; i++) {
+                path.append(sepChar);
+            }
+        }
 
 
-		if (out == null) {
-			System.out.println(path);
-		} else {
-			if(!csvFormat){
-				out.println(path);
-			}
+        if (!csvFormat) {
+            path.append("n_tokens: ").append(node.totalTokens).append("/n_customers: ").append(node.customers).append(" ");
+            path.append(node.getTopWords(numWordsToDisplay, withWeight));
+        } else {
 
-		}
+            // get an arraylist of Word, Weight
+            // make an edgelist
+            String topwords = node.getTopWords(numWordsToDisplay, withWeight);
+            String[] tempArray;
+
+            String delimiter = " ";
+            tempArray = topwords.split(delimiter);
+            for (String s : tempArray) {
+
+                String[] lineTempArray;
+                lineTempArray = s.split(":");
+                String tokenSafe = this.escapeSpecialCharacters(lineTempArray[0]);
+                String csvString = node.nodeID + "," + node.level + "," + tokenSafe + "," + lineTempArray[1];
+                if (out == null) {
+                    System.out.println(csvString);
+                } else {
+                    out.println(csvString);
+                }
+
+            }
+        }
 
 
-		for (NCRPNode child : node.children) {
-			printNode(child, indent + 1, withWeight, csvFormat, out);
-		}
-	}
+        if (out == null) {
+            System.out.println(path);
+        } else {
+            if (!csvFormat) {
+                out.println(path);
+            }
 
-	/**
-	 * For use with empirical likelihood evaluation:
-	 * sample a path through the tree, then sample a multinomial over
-	 * topics in that path, then return a weighted sum of words.
-	 */
-	public double empiricalLikelihood(int numSamples, InstanceList testing) {
-		NCRPNode[] path = new NCRPNode[numLevels];
-		NCRPNode node;
-		double weight;
-		double levelEta, levelEtaSum;
+        }
 
-		path[0] = rootNode;
 
-		FeatureSequence fs;
-		int sample, level, type, token, doc, seqLen, i;
+        for (NCRPNode child : node.children) {
+            printNode(child, indent + 1, withWeight, csvFormat, out);
+        }
+    }
 
-		Dirichlet dirichlet = new Dirichlet(numLevels, alpha);
-		double[] levelWeights;
-		double[] multinomial = new double[numTypes];
+    /**
+     * For use with empirical likelihood evaluation:
+     * sample a path through the tree, then sample a multinomial over
+     * topics in that path, then return a weighted sum of words.
+     */
+    public double empiricalLikelihood(int numSamples, InstanceList testing) {
+        NCRPNode[] path = new NCRPNode[numLevels];
+        NCRPNode node;
+        double weight;
+        double levelEta, levelEtaSum;
 
-		double[][] likelihoods = new double[testing.size()][numSamples];
+        // scaling the alpha for Dirichlet
+        double[] levelsAlpha = new double[numLevels];
+        for (int level = 0; level < numLevels; level++) {
+            levelsAlpha[level] = alpha[level] / levelTotalNodes[level];
+        }
 
-		for (sample = 0; sample < numSamples; sample++) {
-			Arrays.fill(multinomial, 0.0);
 
-			for (level = 1; level < numLevels; level++) {
-				path[level] = path[level - 1].selectExisting();
-			}
+        path[0] = rootNode;
 
-			levelWeights = dirichlet.nextDistribution();
+        FeatureSequence fs;
+        int sample, level, type, token, doc, seqLen, i;
 
-			for (type = 0; type < numTypes; type++) {
-				for (level = 0; level < numLevels; level++) {
-					levelEta = eta[level] / levelTotalNodes[level];
-					levelEtaSum = etaSum[level] / levelTotalNodes[level];
-					node = path[level];
-					multinomial[type] +=
-							levelWeights[level] *
-									(levelEta + node.typeCounts[type]) /
-									(levelEtaSum + node.totalTokens);
-				}
+        Dirichlet dirichlet = new Dirichlet(numLevels, levelsAlpha);
+        double[] levelWeights;
+        double[] multinomial = new double[numTypes];
 
-			}
+        double[][] likelihoods = new double[testing.size()][numSamples];
 
-			for (type = 0; type < numTypes; type++) {
-				multinomial[type] = Math.log(multinomial[type]);
-			}
+        for (sample = 0; sample < numSamples; sample++) {
+            Arrays.fill(multinomial, 0.0);
 
-			for (doc = 0; doc < testing.size(); doc++) {
-				fs = (FeatureSequence) testing.get(doc).getData();
-				seqLen = fs.getLength();
+            for (level = 1; level < numLevels; level++) {
+                path[level] = path[level - 1].selectExisting();
+            }
 
-				for (token = 0; token < seqLen; token++) {
-					type = fs.getIndexAtPosition(token);
-					likelihoods[doc][sample] += multinomial[type];
-				}
-			}
-		}
+            levelWeights = dirichlet.nextDistribution();
 
-		double averageLogLikelihood = 0.0;
-		double logNumSamples = Math.log(numSamples);
-		for (doc = 0; doc < testing.size(); doc++) {
-			double max = Double.NEGATIVE_INFINITY;
-			for (sample = 0; sample < numSamples; sample++) {
-				if (likelihoods[doc][sample] > max) {
-					max = likelihoods[doc][sample];
-				}
-			}
+            for (type = 0; type < numTypes; type++) {
+                for (level = 0; level < numLevels; level++) {
+                    levelEta = eta[level] / levelTotalNodes[level];
+                    levelEtaSum = etaSum[level] / levelTotalNodes[level];
+                    node = path[level];
+                    multinomial[type] +=
+                            levelWeights[level] *
+                                    (levelEta + node.typeCounts[type]) /
+                                    (levelEtaSum + node.totalTokens);
+                }
 
-			double sum = 0.0;
-			for (sample = 0; sample < numSamples; sample++) {
-				sum += Math.exp(likelihoods[doc][sample] - max);
-			}
+            }
 
-			averageLogLikelihood += Math.log(sum) + max - logNumSamples;
-		}
+            for (type = 0; type < numTypes; type++) {
+                multinomial[type] = Math.log(multinomial[type]);
+            }
 
-		return averageLogLikelihood;
-	}
+            for (doc = 0; doc < testing.size(); doc++) {
+                fs = (FeatureSequence) testing.get(doc).getData();
+                seqLen = fs.getLength();
 
-	public void write(File serializedModelFile) {
-		try {
-			ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(serializedModelFile));
-			oos.writeObject(this);
-			oos.close();
-		} catch (IOException e) {
-			System.err.println("Problem serializing HierarchicalLDA to file " +
-					serializedModelFile + ": " + e);
-		}
-	}
+                for (token = 0; token < seqLen; token++) {
+                    type = fs.getIndexAtPosition(token);
+                    likelihoods[doc][sample] += multinomial[type];
+                }
+            }
+        }
 
-	public static HierarchicalLDA read(File f) throws Exception {
+        double averageLogLikelihood = 0.0;
+        double logNumSamples = Math.log(numSamples);
+        for (doc = 0; doc < testing.size(); doc++) {
+            double max = Double.NEGATIVE_INFINITY;
+            for (sample = 0; sample < numSamples; sample++) {
+                if (likelihoods[doc][sample] > max) {
+                    max = likelihoods[doc][sample];
+                }
+            }
 
-		HierarchicalLDA topicModel;
+            double sum = 0.0;
+            for (sample = 0; sample < numSamples; sample++) {
+                sum += Math.exp(likelihoods[doc][sample] - max);
+            }
 
-		ObjectInputStream ois = new ObjectInputStream(new FileInputStream(f));
-		topicModel = (HierarchicalLDA) ois.readObject();
-		ois.close();
+            averageLogLikelihood += Math.log(sum) + max - logNumSamples;
+        }
 
-		return topicModel;
-	}
+        return averageLogLikelihood;
+    }
 
-	/**
-	 * This method is primarily for testing purposes. The {@link cc.mallet.topics.tui.HierarchicalLDATUI}
-	 * class has a more flexible interface for command-line use.
-	 */
-	public static void main(String[] args) {
-		try {
-			InstanceList instances = InstanceList.load(new File(args[0]));
-			InstanceList testing = InstanceList.load(new File(args[1]));
+    public void write(File serializedModelFile) {
+        try {
+            ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(serializedModelFile));
+            oos.writeObject(this);
+            oos.close();
+        } catch (IOException e) {
+            System.err.println("Problem serializing HierarchicalLDA to file " +
+                    serializedModelFile + ": " + e);
+        }
+    }
 
-			HierarchicalLDA sampler = new HierarchicalLDA();
-			sampler.initialize(instances, testing, 5, new Randoms());
-			sampler.estimate(250);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
+    public static HierarchicalLDA read(File f) throws Exception {
 
-	class NCRPNode implements Serializable {
-		int customers;
-		ArrayList<NCRPNode> children;
-		NCRPNode parent;
-		int level;
+        HierarchicalLDA topicModel;
 
-		int totalTokens;
-		int[] typeCounts;
+        ObjectInputStream ois = new ObjectInputStream(new FileInputStream(f));
+        topicModel = (HierarchicalLDA) ois.readObject();
+        ois.close();
 
-		public int nodeID;
+        return topicModel;
+    }
 
-		public NCRPNode(NCRPNode parent, int dimensions, int level) {
-			customers = 0;
-			this.parent = parent;
-			children = new ArrayList<NCRPNode>();
-			this.level = level;
+    /**
+     * This method is primarily for testing purposes. The {@link cc.mallet.topics.tui.HierarchicalLDATUI}
+     * class has a more flexible interface for command-line use.
+     */
+    public static void main(String[] args) {
+        try {
+            InstanceList instances = InstanceList.load(new File(args[0]));
+            InstanceList testing = InstanceList.load(new File(args[1]));
+
+            HierarchicalLDA sampler = new HierarchicalLDA();
+            sampler.initialize(instances, testing, 5, new Randoms());
+            sampler.estimate(250);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    class NCRPNode implements Serializable {
+        int customers;
+        ArrayList<NCRPNode> children;
+        NCRPNode parent;
+        int level;
+
+        int totalTokens;
+        int[] typeCounts;
+
+        public int nodeID;
+
+        public NCRPNode(NCRPNode parent, int dimensions, int level) {
+            customers = 0;
+            this.parent = parent;
+            children = new ArrayList<NCRPNode>();
+            this.level = level;
 
 //			System.out.println("new node at level " + level);
 
-			totalTokens = 0;
-			typeCounts = new int[dimensions];
+            totalTokens = 0;
+            typeCounts = new int[dimensions];
 
-			nodeID = totalNodes;
-			totalNodes++;
-			levelTotalNodes[level]++;
-		}
+            nodeID = totalNodes;
+            totalNodes++;
+            levelTotalNodes[level]++;
+        }
 
-		public NCRPNode(int dimensions) {
-			this(null, dimensions, 0);
-		}
+        public NCRPNode(int dimensions) {
+            this(null, dimensions, 0);
+        }
 
-		public NCRPNode addChild() {
-			NCRPNode node = new NCRPNode(this, typeCounts.length, level + 1);
-			children.add(node);
-			return node;
-		}
+        public NCRPNode addChild() {
+            NCRPNode node = new NCRPNode(this, typeCounts.length, level + 1);
+            children.add(node);
+            return node;
+        }
 
-		public boolean isLeaf() {
-			return level == numLevels - 1;
-		}
+        public boolean isLeaf() {
+            return level == numLevels - 1;
+        }
 
-		public NCRPNode getNewLeaf() {
-			NCRPNode node = this;
-			for (int l = level; l < numLevels - 1; l++) {
-				node = node.addChild();
-			}
-			return node;
-		}
+        public NCRPNode getNewLeaf() {
+            NCRPNode node = this;
+            for (int l = level; l < numLevels - 1; l++) {
+                node = node.addChild();
+            }
+            return node;
+        }
 
-		public void dropPath() {
-			NCRPNode node = this;
-			// remove 1 customer from node ... does it survive?
-			node.customers--;
-			if (node.customers == 0) {
+        public void dropPath() {
+            NCRPNode node = this;
+            // remove 1 customer from node ... does it survive?
+            node.customers--;
+            if (node.customers == 0) {
 //				System.out.println("Node removed at level " + node.level);
-				node.parent.remove(node);
-			}
-			// do the same for parent nodes
-			for (int l = 1; l < numLevels; l++) {
-				node = node.parent;
-				node.customers--;
-				if (node.customers == 0) {
+                node.parent.remove(node);
+            }
+            // do the same for parent nodes
+            for (int l = 1; l < numLevels; l++) {
+                node = node.parent;
+                node.customers--;
+                if (node.customers == 0) {
 //					System.out.println("Node removed at level " + node.level);
-					node.parent.remove(node);
-				}
-			}
-		}
+                    node.parent.remove(node);
+                }
+            }
+        }
 
-		public void remove(NCRPNode node) {
-			children.remove(node);
-		}
+        public void remove(NCRPNode node) {
+            children.remove(node);
+        }
 
-		public void addPath() {
-			NCRPNode node = this;
-			node.customers++;
-			for (int l = 1; l < numLevels; l++) {
-				node = node.parent;
-				node.customers++;
-			}
-		}
+        public void addPath() {
+            NCRPNode node = this;
+            node.customers++;
+            for (int l = 1; l < numLevels; l++) {
+                node = node.parent;
+                node.customers++;
+            }
+        }
 
-		public NCRPNode selectExisting() {
-			double[] weights = new double[children.size()];
-			double levelGamma;
+        public NCRPNode selectExisting() {
+            double[] weights = new double[children.size()];
+            double weightsSum = 0;
+            double levelGamma;
+			levelGamma = gamma[this.level] * Math.log(levelTotalNodes[this.level] + 1);
+            int i = 0;
+            for (NCRPNode child : children) {
+            	weights[i] = (double) child.customers / (levelGamma + customers);
+                i++;
+            }
 
-			int i = 0;
-			for (NCRPNode child : children) {
-//				levelGamma = gamma[child.level] / levelTotalNodes[child.level];
-				levelGamma = gamma[child.level];
-				weights[i] = (double) child.customers / (levelGamma + customers);
-				i++;
-			}
-
-			int choice = random.nextDiscrete(weights);
-			return children.get(choice);
-		}
-
-		public NCRPNode select() {
-			// creating an array of weights
-			double[] weights = new double[children.size() + 1];
-//			double levelGamma = gamma[this.level] / levelTotalNodes[this.level];
-			double levelGamma = gamma[this.level];
-
-			weights[0] = levelGamma / (levelGamma + customers);
-
-			int i = 1;
-			for (NCRPNode child : children) {
-//				levelGamma = gamma[child.level] / levelTotalNodes[child.level];
-				levelGamma = gamma[child.level];
-				weights[i] = (double) child.customers / (levelGamma + customers);
-				i++;
+            for (double weight: weights){
+            	weightsSum += weight;
 			}
 
-			int choice = random.nextDiscrete(weights);
-			if (choice == 0) {
-				return (addChild());
-			} else {
-				return children.get(choice - 1);
+            int choice = random.nextDiscrete(weights, weightsSum);
+            return children.get(choice);
+        }
+
+        public NCRPNode select() {
+            // creating an array of weights
+            double[] weights = new double[children.size() + 1];
+			double levelGamma = gamma[this.level] * Math.log(levelTotalNodes[this.level] + 1);
+			double weightsSum = 0;  // Calculated for normalization
+
+            weights[0] = levelGamma / (levelGamma + customers);
+
+            int i = 1;
+            for (NCRPNode child : this.children) {
+            	weights[i] = (double) child.customers / (levelGamma + customers);
+                i++;
+            }
+
+            for (double weight : weights) {
+            	weightsSum += weight;
 			}
-		}
 
-		public String getTopWords(int numWords, boolean withWeight) {
-			IDSorter[] sortedTypes = new IDSorter[numTypes];
+            int choice = random.nextDiscrete(weights, weightsSum);
+            if (choice == 0) {
+                return (addChild());
+            } else {
+                return children.get(choice - 1);
+            }
+        }
 
-			for (int type = 0; type < numTypes; type++) {
-				sortedTypes[type] = new IDSorter(type, typeCounts[type]);
-			}
-			Arrays.sort(sortedTypes);
+        public String getTopWords(int numWords, boolean withWeight) {
+            IDSorter[] sortedTypes = new IDSorter[numTypes];
 
-			Alphabet alphabet = instances.getDataAlphabet();
-			StringBuffer out = new StringBuffer();
-			for (int i = 0; i < numWords; i++) {
-				if (withWeight) {
-					out.append(alphabet.lookupObject(sortedTypes[i].getID()) + ":" + sortedTypes[i].getWeight() + " ");
-				} else
-					out.append(alphabet.lookupObject(sortedTypes[i].getID()) + " ");
-			}
-			return out.toString();
-		}
+            for (int type = 0; type < numTypes; type++) {
+                sortedTypes[type] = new IDSorter(type, typeCounts[type]);
+            }
+            Arrays.sort(sortedTypes);
 
-		public List getTopWeights(int numWords) {
-			List<Double> weights = new ArrayList<Double>();
-			IDSorter[] sortedTypes = new IDSorter[numTypes];
+            Alphabet alphabet = instances.getDataAlphabet();
+            StringBuffer out = new StringBuffer();
+            for (int i = 0; i < numWords; i++) {
+                if (withWeight) {
+                    out.append(alphabet.lookupObject(sortedTypes[i].getID()) + ":" + sortedTypes[i].getWeight() + " ");
+                } else
+                    out.append(alphabet.lookupObject(sortedTypes[i].getID()) + " ");
+            }
+            return out.toString();
+        }
 
-			for (int type = 0; type < numTypes; type++) {
-				sortedTypes[type] = new IDSorter(type, typeCounts[type]);
-			}
-			Arrays.sort(sortedTypes);
+        public List getTopWeights(int numWords) {
+            List<Double> weights = new ArrayList<Double>();
+            IDSorter[] sortedTypes = new IDSorter[numTypes];
 
-			Alphabet alphabet = instances.getDataAlphabet();
-			for (int i=0;i<numWords ; i++){
-				weights.add(sortedTypes[i].getWeight());
-			}
-			return weights;
-		}
+            for (int type = 0; type < numTypes; type++) {
+                sortedTypes[type] = new IDSorter(type, typeCounts[type]);
+            }
+            Arrays.sort(sortedTypes);
 
-	}
+            Alphabet alphabet = instances.getDataAlphabet();
+            for (int i = 0; i < numWords; i++) {
+                weights.add(sortedTypes[i].getWeight());
+            }
+            return weights;
+        }
+
+    }
 
 }
