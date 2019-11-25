@@ -343,12 +343,15 @@ public class HierarchicalLDA implements Serializable {
     public void calculateNCRP(ObjectDoubleHashMap<NCRPNode> nodeWeights,
                               NCRPNode node, double weight) {
         double levelGamma;
+
+        // Here gamma's effect is more pronounced for nodes where customers is very low. As customers grow, gamma's
+        // effect diminishes
+
         levelGamma = gamma[node.level];
         for (NCRPNode child : node.children) {
-            calculateNCRP(nodeWeights, child,
-                    weight + Math.log((double) child.customers / (node.customers + levelGamma)));
+            double innerWeight = Math.log((double) child.customers / (node.customers + levelGamma));
+            calculateNCRP(nodeWeights, child, innerWeight);
         }
-        levelGamma = gamma[node.level];
         nodeWeights.put(node, weight + Math.log(levelGamma / (node.customers + levelGamma)));
     }
 
@@ -361,6 +364,10 @@ public class HierarchicalLDA implements Serializable {
         //  this topic.
         double nodeWeight = 0.0;
         int totalTokens = 0;
+        int keyvalKey, keyvalValue;
+        int nodeTypeCount;
+        double nodeWeightCalc;
+
         double levelEta, levelEtaSum;
 
         levelEta = eta[node.level];
@@ -368,11 +375,13 @@ public class HierarchicalLDA implements Serializable {
         //if (iteration > 1) { System.out.println(level + " " + nodeWeight); }
 
         for (IntIntCursor keyVal : typeCounts[level]) {
-
-            for (int i = 0; i < keyVal.value; i++) {
-                nodeWeight +=
-                        Math.log((levelEta + node.typeCounts[keyVal.key] + i) /
-                                (levelEtaSum + node.totalTokens + totalTokens));
+            keyvalKey = keyVal.value;
+            keyvalValue = keyVal.key;
+            nodeTypeCount = node.typeCounts[keyvalKey];
+            for (int i = 0; i < keyvalValue; i++) {
+                nodeWeightCalc = Math.log((levelEta + nodeTypeCount + i) /
+                        (levelEtaSum + node.totalTokens + totalTokens));
+                nodeWeight += nodeWeightCalc;
                 totalTokens++;
 
 				/*
