@@ -942,8 +942,7 @@ public class HierarchicalLDA implements Serializable {
             	weightsSum += weight;
 			}
 
-//            int choice = random.nextDiscrete(weights, weightsSum);
-            int choice = random.nextDiscrete(weights);
+            int choice = random.nextDiscrete(weights, weightsSum);
             return children.get(choice);
         }
 
@@ -966,8 +965,7 @@ public class HierarchicalLDA implements Serializable {
             	weightsSum += weight;
 			}
 
-//            int choice = random.nextDiscrete(weights, weightsSum);
-            int choice = random.nextDiscrete(weights);
+            int choice = random.nextDiscrete(weights, weightsSum);
             if (choice == 0) {
                 return (addChild());
             } else {
