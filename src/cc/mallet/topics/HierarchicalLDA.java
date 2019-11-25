@@ -270,8 +270,8 @@ public class HierarchicalLDA implements Serializable {
         double[] newTopicWeights = new double[numLevels];
         for (level = 1; level < numLevels; level++) {  // Skip the root...
             int totalTokens = 0;
-            levelEta = eta[level] / levelTotalNodes[level];
-            levelEtaSum = etaSum[level] / levelTotalNodes[level];
+            levelEta = eta[level];
+            levelEtaSum = etaSum[level];
 
             for (IntIntCursor keyVal : typeCounts[level]) {
                 for (int i = 0; i < keyVal.value; i++) {
@@ -343,9 +343,9 @@ public class HierarchicalLDA implements Serializable {
     public void calculateNCRP(ObjectDoubleHashMap<NCRPNode> nodeWeights,
                               NCRPNode node, double weight) {
         double levelGamma;
-		levelGamma = gamma[node.level] * Math.log(levelTotalNodes[node.level] + 1);
+		levelGamma = gamma[node.level];
         for (NCRPNode child : node.children) {
-			levelGamma = gamma[child.level] * Math.log(levelTotalNodes[child.level] + 1);
+			levelGamma = gamma[child.level];
 			calculateNCRP(nodeWeights, child,
                     weight + Math.log((double) child.customers / (node.customers + levelGamma)));
         }
@@ -364,8 +364,8 @@ public class HierarchicalLDA implements Serializable {
         int totalTokens = 0;
         double levelEta, levelEtaSum;
 
-        levelEta = eta[node.level] / levelTotalNodes[node.level];
-        levelEtaSum = etaSum[node.level] / levelTotalNodes[node.level];
+        levelEta = eta[node.level];
+        levelEtaSum = etaSum[node.level];
         //if (iteration > 1) { System.out.println(level + " " + nodeWeight); }
 
         for (IntIntCursor keyVal : typeCounts[level]) {
@@ -471,8 +471,8 @@ public class HierarchicalLDA implements Serializable {
             sum = 0.0;
             for (level = 0; level < numLevels; level++) {
                 levelAlpha = alpha[level] / levelTotalNodes[level];
-                levelEta = eta[level] / levelTotalNodes[level];
-                levelEtaSum = etaSum[level] / levelTotalNodes[level];
+                levelEta = eta[level];
+                levelEtaSum = etaSum[level];
 
                 levelWeights[level] =
                         (levelAlpha + levelCounts[level]) *
@@ -761,8 +761,8 @@ public class HierarchicalLDA implements Serializable {
 
             for (type = 0; type < numTypes; type++) {
                 for (level = 0; level < numLevels; level++) {
-                    levelEta = eta[level] / levelTotalNodes[level];
-                    levelEtaSum = etaSum[level] / levelTotalNodes[level];
+                    levelEta = eta[level];
+                    levelEtaSum = etaSum[level];
                     node = path[level];
                     multinomial[type] +=
                             levelWeights[level] *
@@ -932,9 +932,10 @@ public class HierarchicalLDA implements Serializable {
             double[] weights = new double[children.size()];
             double weightsSum = 0;
             double levelGamma;
-			levelGamma = gamma[this.level] * Math.log(levelTotalNodes[this.level] + 1);
+
             int i = 0;
             for (NCRPNode child : children) {
+                levelGamma = gamma[child.level];
             	weights[i] = (double) child.customers / (levelGamma + customers);
                 i++;
             }
@@ -950,13 +951,14 @@ public class HierarchicalLDA implements Serializable {
         public NCRPNode select() {
             // creating an array of weights
             double[] weights = new double[children.size() + 1];
-			double levelGamma = gamma[this.level] * Math.log(levelTotalNodes[this.level] + 1);
+			double levelGamma = gamma[this.level];
 			double weightsSum = 0;  // Calculated for normalization
 
             weights[0] = levelGamma / (levelGamma + customers);
 
             int i = 1;
             for (NCRPNode child : this.children) {
+                levelGamma = gamma[child.level];
             	weights[i] = (double) child.customers / (levelGamma + customers);
                 i++;
             }
