@@ -1,14 +1,10 @@
 package cc.mallet.topics;
 
-import java.lang.reflect.Array;
 import java.util.*;
 import java.io.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 
 import cc.mallet.types.*;
-import cc.mallet.util.CommandOption;
 import cc.mallet.util.Randoms;
 
 import com.carrotsearch.hppc.ObjectDoubleHashMap;
@@ -44,6 +40,7 @@ public class HierarchicalLDA implements Serializable {
 
     int totalNodes = 0;
     int[] levelTotalNodes;
+    long[] levelTotalTokens;
 
     String stateFile = "hlda.state";
 
@@ -98,6 +95,7 @@ public class HierarchicalLDA implements Serializable {
         this.testing = testing;
         this.numLevels = numLevels;
         this.levelTotalNodes = new int[numLevels];
+        this.levelTotalTokens = new long[numLevels];
         this.random = random;
         this.etaSum = new double[numLevels];
 
@@ -154,6 +152,7 @@ public class HierarchicalLDA implements Serializable {
 
     public void countNodeLevels(NCRPNode node, int level) {
         levelTotalNodes[level] += 1;
+        levelTotalTokens[level] += node.totalTokens;
         for (NCRPNode child : node.children) {
             countNodeLevels(child, child.level);
         }
@@ -173,13 +172,64 @@ public class HierarchicalLDA implements Serializable {
         }
     }
 
+    public String showLevelCounts() {
+        countNodeLevels(rootNode, true);
+        StringBuffer prefixLevels = new StringBuffer();
+        prefixLevels.append("(");
+        for (int level = 0; level < numLevels; level ++) {
+            prefixLevels.append(levelTotalNodes[level]);
+            prefixLevels.append(":");
+            prefixLevels.append(levelTotalTokens[level]);
+            if (level + 1 != numLevels){
+                prefixLevels.append(", ");
+            } else {
+                prefixLevels.append(")");
+            }
+        }
+        return prefixLevels.toString();
+    }
+
     public void estimate(int numIterations) {
+        long startTime, runningTotal;
+        double totalTimings = 0;
+        double timingMean = 0;
+        runningTotal = 0;
+        String levelPrefix = "";
+
         for (int iteration = 1; iteration <= numIterations; iteration++) {
             for (int doc = 0; doc < numDocuments; doc++) {
+
+                startTime = System.currentTimeMillis();
                 samplePath(doc, iteration);
+                runningTotal += (System.currentTimeMillis() - startTime);
+                totalTimings += 1;
+                if (doc % 50 == 0) {
+                    timingMean = runningTotal / totalTimings;
+                    runningTotal = 0;
+                    totalTimings = 0;
+                    levelPrefix = showLevelCounts();
+
+                }
+
+                System.out.print("\r");
+                System.out.print("Sample Topics : " + doc + " of " + numDocuments + ", mills per iter: " + timingMean + " " + levelPrefix);
+
             }
             for (int doc = 0; doc < numDocuments; doc++) {
+                startTime = System.currentTimeMillis();
                 sampleTopics(doc);
+                runningTotal += (System.currentTimeMillis() - startTime);
+                totalTimings += 1;
+                if (doc % 50 == 0) {
+                    timingMean = runningTotal / totalTimings;
+                    runningTotal = 0;
+                    totalTimings = 0;
+                    levelPrefix = showLevelCounts();
+                }
+
+                System.out.print("\r");
+                System.out.print("Sample Topics : " + doc + " of " + numDocuments + ", mills per iter: " + timingMean + " " + levelPrefix);
+
             }
 
             countNodeLevels(rootNode, true);
@@ -318,7 +368,8 @@ public class HierarchicalLDA implements Serializable {
 
         //if (iteration > 1) {System.out.println();}
 //		System.out.println(Arrays.toString(weights));
-        node = nodes[random.nextDiscrete(weights, sum)];
+        int choice = random.nextDiscrete(weights, sum);
+        node = nodes[choice];
 
         // If we have picked an internal node, we need to
         //  add a new path.
@@ -347,11 +398,19 @@ public class HierarchicalLDA implements Serializable {
         // Here gamma's effect is more pronounced for nodes where customers is very low. As customers grow, gamma's
         // effect diminishes
 
-        levelGamma = gamma[node.level];
+
         for (NCRPNode child : node.children) {
-            double innerWeight = Math.log((double) child.customers / (node.customers + levelGamma));
+            levelGamma = gamma[child.level];
+            double innerWeight = Math.log((double) child.customers / (node.customers + gamma[node.level]));
             calculateNCRP(nodeWeights, child, innerWeight);
         }
+
+        if (node.level + 1 == numLevels) {
+            levelGamma = gamma[node.level];
+        } else {
+            levelGamma = gamma[(node.level + 1)];
+        }
+
         nodeWeights.put(node, weight + Math.log(levelGamma / (node.customers + levelGamma)));
     }
 
@@ -364,7 +423,8 @@ public class HierarchicalLDA implements Serializable {
         //  this topic.
         double nodeWeight = 0.0;
         int totalTokens = 0;
-        int keyvalKey, keyvalValue;
+        int keyvalKey; // the token id
+        int keyvalValue; // the token count in this node
         int nodeTypeCount;
         double nodeWeightCalc;
 
@@ -552,12 +612,12 @@ public class HierarchicalLDA implements Serializable {
             path.replace(0, 1, "");
             path.append(",");
 
-            List nodeWeights = childNode.getTopWeights(seqLen);
+            List<Double> nodeWeights = childNode.getTopWeights(seqLen);
 
             for (token = 0; token < seqLen; token++) {
                 type = fs.getIndexAtPosition(token);
                 level = docLevels[token];
-                tokenWeight = (double) nodeWeights.get(token);
+                tokenWeight = nodeWeights.get(token);
                 // The "" just tells java we're not trying to add a string and an int
                 Object alphaObject = alphabet.lookupObject(type);
                 String alphaString = alphaObject.toString();
@@ -585,7 +645,7 @@ public class HierarchicalLDA implements Serializable {
         out.write("parent,child,child_id,type,child_weight,parent_weight,parent_level" + "\n");
 
         // Create token 2 id mapping
-        Map token2Id = new HashMap();
+        Map<String, Integer> token2Id = new HashMap<String, Integer>();
 
 
         Alphabet alphabet = instances.getDataAlphabet();
@@ -611,7 +671,7 @@ public class HierarchicalLDA implements Serializable {
         out1.close();
     }
 
-    public void printNodeEdge(NCRPNode node, PrintWriter out, Map token2id) {
+    public void printNodeEdge(NCRPNode node, PrintWriter out, Map<String, Integer> token2id) {
         // alphabet is used to retrieve token ids
         // get all words with a weight greater than 0
         int nnz = Arrays.stream(node.typeCounts).filter(x -> x > 0).toArray().length;
@@ -632,7 +692,7 @@ public class HierarchicalLDA implements Serializable {
                 String[] lineTempArray;
                 lineTempArray = s.split(":");
                 String tokenSafe = this.escapeSpecialCharacters(lineTempArray[0]);
-                int tokenId = (int) token2id.get(tokenSafe);
+                int tokenId = token2id.get(tokenSafe);
                 String csvString = node.nodeID + "," + tokenSafe + "," + tokenId + ",word," + lineTempArray[1] + "," + node.customers + "," + nodeLevel;
                 if (out == null) {
                     System.out.println(csvString);
@@ -961,14 +1021,21 @@ public class HierarchicalLDA implements Serializable {
 			double levelGamma = gamma[this.level];
 			double weightsSum = 0;  // Calculated for normalization
 
-            weights[0] = levelGamma / (levelGamma + customers);
 
             int i = 1;
             for (NCRPNode child : this.children) {
-                levelGamma = gamma[child.level];
+//                levelGamma = gamma[child.level];
             	weights[i] = (double) child.customers / (levelGamma + customers);
                 i++;
             }
+
+//            if (this.level + 1 == numLevels) {
+//                levelGamma = gamma[this.level];
+//            } else {
+//                levelGamma = gamma[(this.level + 1)];
+//            }
+
+            weights[0] = levelGamma / (levelGamma + customers);
 
             for (double weight : weights) {
             	weightsSum += weight;
@@ -976,8 +1043,14 @@ public class HierarchicalLDA implements Serializable {
 
             int choice = random.nextDiscrete(weights, weightsSum);
             if (choice == 0) {
+//                if(this.level == 1) {
+//                    System.out.println("Add Child: " + this.children.size());
+//                }
                 return (addChild());
             } else {
+//                if(this.level == 1) {
+//                    System.out.println("Existing Child: " + this.children.size());
+//                }
                 return children.get(choice - 1);
             }
         }
@@ -1001,7 +1074,7 @@ public class HierarchicalLDA implements Serializable {
             return out.toString();
         }
 
-        public List getTopWeights(int numWords) {
+        public List<Double> getTopWeights(int numWords) {
             List<Double> weights = new ArrayList<Double>();
             IDSorter[] sortedTypes = new IDSorter[numTypes];
 
