@@ -13,13 +13,6 @@ import com.carrotsearch.hppc.cursors.IntIntCursor;
 
 public class HierarchicalLDA implements Serializable {
 
-	/*
-	NCRP Node uses Gamma to determine whether to add a new child node or return an existing one
-	With Gamma = 1 : .5 Probability of adding a new child
-	With Gamma = 0 : 0 Probability of adding a new child
-	With Gamma = 10 : ~ 0.9 Probability of adding a new child
-	 */
-
     InstanceList instances;
     InstanceList testing;
 
@@ -201,7 +194,7 @@ public class HierarchicalLDA implements Serializable {
             for (int doc = 0; doc < numDocuments; doc++) {
 
                 startTime = System.currentTimeMillis();
-                samplePath(doc, iteration);
+                samplePath(doc);
                 runningTotal += (System.currentTimeMillis() - startTime);
                 totalTimings += 1;
                 if (doc % 50 == 0) {
@@ -253,19 +246,15 @@ public class HierarchicalLDA implements Serializable {
         }
     }
 
-    private void printNodeCounts() {
-        System.out.println("**Node Counts**");
-        for (int level = 0; level < numLevels; level++) {
-            System.out.println("Level " + level + ": " + levelTotalNodes[level]);
-        }
-    }
-
-    public void samplePath(int doc, int iteration) {
+    public void samplePath(int doc) {
         NCRPNode[] path = new NCRPNode[numLevels];
         NCRPNode node;
-        int level, token, type, topicCount;
+        int level;
+        int token;
+        int type;
 
-        double weight, levelEta, levelEtaSum;
+        double levelEta;
+        double levelEtaSum;
 
         node = documentLeaves[doc];
         for (level = numLevels - 1; level >= 0; level--) {
@@ -336,7 +325,7 @@ public class HierarchicalLDA implements Serializable {
 //			if (iteration > 1) { System.out.println(newTopicWeights[level]); }
         }
 
-        calculateWordLikelihood(nodeWeights, rootNode, 0.0, typeCounts, newTopicWeights, 0, iteration);
+        calculateWordLikelihood(nodeWeights, rootNode, 0.0, typeCounts, newTopicWeights, 0);
 
         Object[] objectArray = nodeWeights.keys().toArray();
         NCRPNode[] nodes = Arrays.copyOf(objectArray, objectArray.length, NCRPNode[].class);
@@ -355,21 +344,9 @@ public class HierarchicalLDA implements Serializable {
         for (int i = 0; i < nodes.length; i++) {
             weights[i] = Math.exp(nodeWeights.get(nodes[i]) - max);
 
-
-//			  if (iteration > 1) {
-//			  if (nodes[i] == documentLeaves[doc]) {
-//			  System.out.print("* ");
-//			  }
-//			  System.out.println(((NCRPNode) nodes[i]).level + "\t" + weights[i] +
-//			  "\t" + nodeWeights.get(nodes[i]));
-//			  }
-
-
             sum += weights[i];
         }
 
-        //if (iteration > 1) {System.out.println();}
-//		System.out.println(Arrays.toString(weights));
         int choice = random.nextDiscrete(weights, sum);
         node = nodes[choice];
 
@@ -400,9 +377,10 @@ public class HierarchicalLDA implements Serializable {
         // Here gamma's effect is more pronounced for nodes where customers is very low. As customers grow, gamma's
         // effect diminishes
 
+        // A higher gamma will decrease the weight assigned to a child
+
 
         for (NCRPNode child : node.children) {
-            levelGamma = gamma[child.level];
             double innerWeight = Math.log((double) child.customers / (node.customers + gamma[node.level]));
             calculateNCRP(nodeWeights, child, innerWeight);
         }
@@ -419,47 +397,33 @@ public class HierarchicalLDA implements Serializable {
     public void calculateWordLikelihood(ObjectDoubleHashMap<NCRPNode> nodeWeights,
                                         NCRPNode node, double weight,
                                         IntIntHashMap[] typeCounts, double[] newTopicWeights,
-                                        int level, int iteration) {
+                                        int level) {
 
         // First calculate the likelihood of the words at this level, given
         //  this topic.
         double nodeWeight = 0.0;
         int totalTokens = 0;
-        int nodeTypeCount;
-        double nodeWeightCalc;
-
         double levelEta, levelEtaSum;
 
         levelEta = eta[node.level];
         levelEtaSum = etaSum[node.level];
-        //if (iteration > 1) { System.out.println(level + " " + nodeWeight); }
+
 
         for (IntIntCursor keyVal : typeCounts[level]) {
-            nodeTypeCount = node.typeCounts[keyVal.key];
             for (int i = 0; i < keyVal.value; i++) {
-                nodeWeightCalc = Math.log((levelEta + nodeTypeCount + i) /
-                        (levelEtaSum + node.totalTokens + totalTokens));
-                nodeWeight += nodeWeightCalc;
+                nodeWeight +=
+                        Math.log((levelEta + node.typeCounts[keyVal.key] + i) /
+                                (levelEtaSum + node.totalTokens + totalTokens));
                 totalTokens++;
-
-				/*
-				  if (iteration > 1) {
-				  System.out.println("(" +eta + " + " + node.typeCounts[type] + " + " + i + ") /" + 
-				  "(" + etaSum + " + " + node.totalTokens + " + " + totalTokens + ")" + 
-				  " : " + nodeWeight);
-				  }
-				*/
 
             }
         }
-
-        //if (iteration > 1) { System.out.println(level + " " + nodeWeight); }
 
         // Propagate that weight to the child nodes
 
         for (NCRPNode child : node.children) {
             calculateWordLikelihood(nodeWeights, child, weight + nodeWeight,
-                    typeCounts, newTopicWeights, level + 1, iteration);
+                    typeCounts, newTopicWeights, level + 1);
         }
 
         // Finally, if this is an internal node, add the weight of
@@ -536,14 +500,10 @@ public class HierarchicalLDA implements Serializable {
 
             sum = 0.0;
             for (level = 0; level < numLevels; level++) {
-                levelAlpha = alpha[level] / levelTotalNodes[level];
-                levelEta = eta[level];
-                levelEtaSum = etaSum[level];
-
                 levelWeights[level] =
-                        (levelAlpha + levelCounts[level]) *
-                                (levelEta + path[level].typeCounts[type]) /
-                                (levelEtaSum + path[level].totalTokens);
+					(alpha[level] + levelCounts[level]) *
+					(eta[level] + path[level].typeCounts[type]) /
+					(etaSum[level] + path[level].totalTokens);
                 sum += levelWeights[level];
             }
             level = random.nextDiscrete(levelWeights, sum);
@@ -965,7 +925,7 @@ public class HierarchicalLDA implements Serializable {
             NCRPNode node = this;
             // remove 1 customer from node ... does it survive?
             node.customers--;
-            if (node.customers == 0) {
+            if (node.customers == 0 || node.totalTokens == 0) {
 //				System.out.println("Node removed at level " + node.level);
                 node.parent.remove(node);
             }
@@ -973,7 +933,7 @@ public class HierarchicalLDA implements Serializable {
             for (int l = 1; l < numLevels; l++) {
                 node = node.parent;
                 node.customers--;
-                if (node.customers == 0) {
+                if (node.customers == 0 || node.totalTokens == 0) {
 //					System.out.println("Node removed at level " + node.level);
                     node.parent.remove(node);
                 }
@@ -996,12 +956,10 @@ public class HierarchicalLDA implements Serializable {
         public NCRPNode selectExisting() {
             double[] weights = new double[children.size()];
             double weightsSum = 0;
-            double levelGamma;
 
             int i = 0;
             for (NCRPNode child : children) {
-                levelGamma = gamma[child.level];
-            	weights[i] = (double) child.customers / (levelGamma + customers);
+            	weights[i] = (double) child.customers / (gamma[child.level] + customers);
                 i++;
             }
 
@@ -1016,14 +974,12 @@ public class HierarchicalLDA implements Serializable {
         public NCRPNode select() {
             // creating an array of weights
             double[] weights = new double[children.size() + 1];
-			double levelGamma = gamma[this.level];
-			double weightsSum = 0;  // Calculated for normalization
+            double weightsSum = 0;  // Calculated for normalization
 
 
             int i = 1;
             for (NCRPNode child : this.children) {
-//                levelGamma = gamma[child.level];
-            	weights[i] = (double) child.customers / (levelGamma + customers);
+                weights[i] = (double) child.customers / (gamma[child.level] + customers);
                 i++;
             }
 
@@ -1033,7 +989,7 @@ public class HierarchicalLDA implements Serializable {
 //                levelGamma = gamma[(this.level + 1)];
 //            }
 
-            weights[0] = levelGamma / (levelGamma + customers);
+            weights[0] = gamma[this.level] / (gamma[this.level] + customers);
 
             for (double weight : weights) {
             	weightsSum += weight;
@@ -1041,14 +997,8 @@ public class HierarchicalLDA implements Serializable {
 
             int choice = random.nextDiscrete(weights, weightsSum);
             if (choice == 0) {
-//                if(this.level == 1) {
-//                    System.out.println("Add Child: " + this.children.size());
-//                }
                 return (addChild());
             } else {
-//                if(this.level == 1) {
-//                    System.out.println("Existing Child: " + this.children.size());
-//                }
                 return children.get(choice - 1);
             }
         }
