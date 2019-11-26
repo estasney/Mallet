@@ -6,6 +6,7 @@ import cc.mallet.types.InstanceList;
 import cc.mallet.topics.HierarchicalLDA;
 
 import java.io.*;
+import java.util.Arrays;
 
 public class HierarchicalLDATUI {
 	
@@ -62,17 +63,17 @@ public class HierarchicalLDATUI {
 		 "The number of levels in the tree.", null);
 
 	static CommandOption.DoubleArray alpha = new CommandOption.DoubleArray
-		(HierarchicalLDATUI.class, "alpha", "DECIMAL,[DECIMAL,...]", true, new double[] {10, 10, 10},
+		(HierarchicalLDATUI.class, "alpha", "DECIMAL,[DECIMAL,...]", true, new double[] {1, 1, 0.1},
 		 "Alpha parameter: smoothing over level distributions.  "+
 				"For example --alpha 10,10,10", null);
 
 	static CommandOption.DoubleArray gamma = new CommandOption.DoubleArray
-		(HierarchicalLDATUI.class, "gamma", "DECIMAL,[DECIMAL,...]", true, new double[] {1.0, 1.0, 1.0},
+		(HierarchicalLDATUI.class, "gamma", "DECIMAL,[DECIMAL,...]", true, new double[] {1.0, 1.0, 0.1},
 		 "Gamma parameter: CRP smoothing parameter; number of imaginary customers at next, as yet unused table   "+
 				"For example --gamma 1,1,1", null);
 
 	static CommandOption.DoubleArray eta = new CommandOption.DoubleArray
-		(HierarchicalLDATUI.class, "eta", "DECIMAL,[DECIMAL,...]", true, new double[] {0.1, 0.1, 0.1},
+		(HierarchicalLDATUI.class, "eta", "DECIMAL,[DECIMAL,...]", true, new double[] {1, 1, 0.1},
 		 "Eta parameter: smoothing over topic-word distributions", null);
 
 	public static void main (String[] args) throws java.io.IOException {
@@ -80,8 +81,11 @@ public class HierarchicalLDATUI {
 		// Process the command-line options
 		CommandOption.setSummary (HierarchicalLDATUI.class,
 								  "Hierarchical LDA with a fixed tree depth.");
+
 		CommandOption.process (HierarchicalLDATUI.class, args);
-		
+
+
+
 		// Load instance lists
 
 		if (inputFile.value() == null) {
