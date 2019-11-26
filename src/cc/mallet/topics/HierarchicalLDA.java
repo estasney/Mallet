@@ -6,7 +6,6 @@ import java.io.*;
 
 import cc.mallet.types.*;
 
-import cc.mallet.util.CommandOption;
 import cc.mallet.util.Randoms;
 
 import com.carrotsearch.hppc.ObjectDoubleHashMap;
@@ -172,10 +171,10 @@ public class HierarchicalLDA implements Serializable {
         }
     }
 
-    public String showLevelCounts(String prefix, int iter, int total, double timingmean) {
+    public String showLevelCounts(String prefix, int outerIter, int outerTotal, int innerIter, int innerTotal, double timingmean) {
         countNodeLevels(rootNode, true);
         StringBuffer progress = new StringBuffer();
-        progress.append(iter).append(", ").append(prefix).append(iter).append(" of ").append(total).append(" ms/iter : ")
+        progress.append("Iter ").append(outerIter).append(" of ").append(outerTotal).append(" : ").append(prefix).append(innerIter+1).append(" of ").append(innerTotal).append(" ms/iter : ")
                 .append(timingmean).append(" ");
 
         progress.append("(");
@@ -203,18 +202,17 @@ public class HierarchicalLDA implements Serializable {
         for (int iteration = 1; iteration <= numIterations; iteration++) {
             for (int doc = 0; doc < numDocuments; doc++) {
                 startTime = System.currentTimeMillis();
-
                 samplePath(doc);
                 runningTotal += (System.currentTimeMillis() - startTime);
                 totalTimings += 1;
 
-                if (doc % 50 == 0) {
+                if (doc % 50 == 0 || (doc + 1) == numDocuments) {
 
                     // update the mean timings
                     timingMean = runningTotal / totalTimings;
                     runningTotal = 0;
                     totalTimings = 0;
-                    String progress = showLevelCounts("Sample Path : ", doc, numDocuments, timingMean);
+                    String progress = showLevelCounts("Sample Path : ", iteration, numIterations, doc, numDocuments, timingMean);
                     lineLength = progress.length();
                     System.out.print("\r");
                     if (lineLength < lastLineLength) {
@@ -229,17 +227,16 @@ public class HierarchicalLDA implements Serializable {
             totalTimings = 0;
             for (int doc = 0; doc < numDocuments; doc++) {
                 startTime = System.currentTimeMillis();
-
                 sampleTopics(doc);
                 runningTotal += (System.currentTimeMillis() - startTime);
                 totalTimings += 1;
-                if (doc % 50 == 0) {
+                if (doc % 50 == 0 || (doc + 1) == numDocuments) {
                     timingMean = runningTotal / totalTimings;
                     runningTotal = 0;
                     totalTimings = 0;
-                    String progress = showLevelCounts("Sample Topics : ", doc, numDocuments, timingMean);
+                    String progress = showLevelCounts("Sample Topics : ", iteration, numIterations, doc, numDocuments, timingMean);
                     lineLength = progress.length();
-                    System.out.print("\r");;
+                    System.out.print("\r");
                     if (lineLength < lastLineLength) {
                         System.out.print(StringUtils.repeat(" ", lastLineLength));
                         System.out.print("\r");
@@ -258,6 +255,7 @@ public class HierarchicalLDA implements Serializable {
             if (saveEvery > 0 & iteration > 0 & iteration % saveEvery == 0) {
                 printState(new PrintWriter(stateFile));
                 printEdgeList(topicFile);
+                System.out.println("Saved state");
             }
 
         }

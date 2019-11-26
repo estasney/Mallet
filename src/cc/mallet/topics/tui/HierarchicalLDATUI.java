@@ -68,7 +68,7 @@ public class HierarchicalLDATUI {
 		 "Eta parameter: smoothing over topic-word distributions", null);
 
 	static CommandOption.Integer saveEvery = new CommandOption.Integer(
-			HierarchicalLDATUI.class, "saveEvery", "INTEGER", true, 0,
+			HierarchicalLDATUI.class, "save-every", "INTEGER", true, 0,
 			"If set to a number > 0 the model will save it's state every n iterations.", null);
 
 	public static void main (String[] args) throws java.io.IOException {
