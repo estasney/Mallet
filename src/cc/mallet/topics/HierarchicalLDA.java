@@ -209,13 +209,14 @@ public class HierarchicalLDA implements Serializable {
                     runningTotal = 0;
                     totalTimings = 0;
                     levelPrefix = showLevelCounts();
-
+                    System.out.print("\r");
+                    System.out.print("Sample Path : " + doc + " of " + numDocuments + ", mills per iter: " + timingMean + " " + levelPrefix);
                 }
 
-                System.out.print("\r");
-                System.out.print("Sample Topics : " + doc + " of " + numDocuments + ", mills per iter: " + timingMean + " " + levelPrefix);
+
 
             }
+            System.out.print("\n");
             for (int doc = 0; doc < numDocuments; doc++) {
                 startTime = System.currentTimeMillis();
                 sampleTopics(doc);
@@ -226,12 +227,14 @@ public class HierarchicalLDA implements Serializable {
                     runningTotal = 0;
                     totalTimings = 0;
                     levelPrefix = showLevelCounts();
+                    System.out.print("\r");
+                    System.out.print("Sample Topics : " + doc + " of " + numDocuments + ", mills per iter: " + timingMean + " " + levelPrefix);
                 }
 
-                System.out.print("\r");
-                System.out.print("Sample Topics : " + doc + " of " + numDocuments + ", mills per iter: " + timingMean + " " + levelPrefix);
+
 
             }
+            System.out.print("\n");
 
             countNodeLevels(rootNode, true);
 
@@ -239,9 +242,7 @@ public class HierarchicalLDA implements Serializable {
                 printNodes();
             }
 
-            if (iteration % displayNodeCountsInterval == 0) {
-                printNodeCounts();
-            }
+
 
             if (showProgress) {
                 System.out.print(".");
