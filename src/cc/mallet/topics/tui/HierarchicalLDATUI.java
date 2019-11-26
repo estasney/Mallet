@@ -6,7 +6,6 @@ import cc.mallet.types.InstanceList;
 import cc.mallet.topics.HierarchicalLDA;
 
 import java.io.*;
-import java.util.Arrays;
 
 public class HierarchicalLDATUI {
 	
@@ -42,17 +41,9 @@ public class HierarchicalLDATUI {
 	  	(HierarchicalLDATUI.class, "num-iterations", "INTEGER", true, 1000,
 		 "The number of iterations of Gibbs sampling.", null);
 
-	static CommandOption.Boolean showProgress = new CommandOption.Boolean
-		(HierarchicalLDATUI.class, "show-progress", "BOOLEAN", false, true,
-		 "If true, print a character to standard output after every sampling iteration.", null);
-
 	static CommandOption.Integer showTopicsInterval = new CommandOption.Integer
 		(HierarchicalLDATUI.class, "show-topics-interval", "INTEGER", true, 50,
 		 "The number of iterations between printing a brief summary of the topics so far.", null);
-
-	static CommandOption.Integer showNodesInterval = new CommandOption.Integer
-			(HierarchicalLDATUI.class, "node-count-interval", "INTEGER", true, 1,
-					"The number of iterations between printing a count of nodes at each level.", null);
 
 	static CommandOption.Integer topWords = new CommandOption.Integer
 		(HierarchicalLDATUI.class, "num-top-words", "INTEGER", true, 20,
@@ -75,6 +66,10 @@ public class HierarchicalLDATUI {
 	static CommandOption.DoubleArray eta = new CommandOption.DoubleArray
 		(HierarchicalLDATUI.class, "eta", "DECIMAL,[DECIMAL,...]", true, new double[] {1, 1, 0.1},
 		 "Eta parameter: smoothing over topic-word distributions", null);
+
+	static CommandOption.Integer saveEvery = new CommandOption.Integer(
+			HierarchicalLDATUI.class, "saveEvery", "INTEGER", true, 0,
+			"If set to a number > 0 the model will save it's state every n iterations.", null);
 
 	public static void main (String[] args) throws java.io.IOException {
 
@@ -131,12 +126,13 @@ public class HierarchicalLDATUI {
 		
 		// Display preferences
 
-		hlda.setTopicDisplay(showTopicsInterval.value(), topWords.value(), showNodesInterval.value());
-		hlda.setProgressDisplay(showProgress.value());
+		hlda.setTopicDisplay(showTopicsInterval.value(), topWords.value());
+		hlda.setSaveEvery(saveEvery.value());
+		hlda.setSaveState(stateFile.value(), topicNodeFile.value(), outputModelFilename.value());
 
 		// Initialize random number generator
 
-		Randoms random = null;
+		Randoms random;
 		if (randomSeed.value() == 0) {
 			random = new Randoms();
 		}
@@ -156,7 +152,6 @@ public class HierarchicalLDATUI {
 		}
 
 		if (topicNodeFile.value() != null) {
-//			hlda.printTopicNodes(topicNodeFile.value());
 			hlda.printEdgeList(topicNodeFile.value());
 		}
 

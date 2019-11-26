@@ -5,17 +5,20 @@ import java.io.*;
 
 
 import cc.mallet.types.*;
+
+import cc.mallet.util.CommandOption;
 import cc.mallet.util.Randoms;
 
 import com.carrotsearch.hppc.ObjectDoubleHashMap;
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.cursors.IntIntCursor;
+import org.apache.commons.lang3.StringUtils;
+
 
 public class HierarchicalLDA implements Serializable {
 
     InstanceList instances;
     InstanceList testing;
-
     NCRPNode rootNode, node;
 
     int numLevels;
@@ -35,15 +38,16 @@ public class HierarchicalLDA implements Serializable {
     int[] levelTotalNodes;
     long[] levelTotalTokens;
 
-    String stateFile = "hlda.state";
+    String stateFile;
+    String topicFile;
+    String modelFile ;
 
     Randoms random;
-
-    boolean showProgress = true;
 
     int displayTopicsInterval = 50;
     int numWordsToDisplay = 10;
     int displayNodeCountsInterval = 1;
+    int saveEvery = 0;
 
     public HierarchicalLDA() {
         alpha = new double[]{};
@@ -64,22 +68,24 @@ public class HierarchicalLDA implements Serializable {
         this.eta = eta;
     }
 
-    public void setStateFile(String stateFile) {
-        this.stateFile = stateFile;
-    }
-
-    public void setTopicDisplay(int interval, int words, int nodeInterval) {
+    public void setTopicDisplay(int interval, int words) {
         displayTopicsInterval = interval;
         numWordsToDisplay = words;
-        displayNodeCountsInterval = nodeInterval;
     }
 
     /**
      * This parameter determines whether the sampler outputs
      * shows progress by outputting a character after every iteration.
      */
-    public void setProgressDisplay(boolean showProgress) {
-        this.showProgress = showProgress;
+
+    public void setSaveEvery(int value) {
+        this.saveEvery = value;
+    }
+
+    public void setSaveState(String stateFileValue, String topicFileValue, String modelFileValue){
+        this.stateFile = stateFileValue;
+        this.topicFile = topicFileValue;
+        this.modelFile = modelFileValue;
     }
 
     public void initialize(InstanceList instances, InstanceList testing,
@@ -166,52 +172,64 @@ public class HierarchicalLDA implements Serializable {
         }
     }
 
-    public String showLevelCounts() {
+    public String showLevelCounts(String prefix, int iter, int total, double timingmean) {
         countNodeLevels(rootNode, true);
-        StringBuffer prefixLevels = new StringBuffer();
-        prefixLevels.append("(");
+        StringBuffer progress = new StringBuffer();
+        progress.append(iter).append(", ").append(prefix).append(iter).append(" of ").append(total).append(" ms/iter : ")
+                .append(timingmean).append(" ");
+
+        progress.append("(");
         for (int level = 0; level < numLevels; level ++) {
-            prefixLevels.append(levelTotalNodes[level]);
-            prefixLevels.append(":");
-            prefixLevels.append(levelTotalTokens[level]);
+            progress.append(levelTotalNodes[level]);
+            progress.append(":");
+            progress.append(levelTotalTokens[level]);
             if (level + 1 != numLevels){
-                prefixLevels.append(", ");
+                progress.append(", ");
             } else {
-                prefixLevels.append(")");
+                progress.append(")");
             }
         }
-        return prefixLevels.toString();
+        return progress.toString();
     }
 
-    public void estimate(int numIterations) {
+    public void estimate(int numIterations) throws IOException {
         long startTime, runningTotal;
         double totalTimings = 0;
         double timingMean = 0;
+        int lastLineLength = 0;
+        int lineLength = 0;
         runningTotal = 0;
-        String levelPrefix = "";
 
         for (int iteration = 1; iteration <= numIterations; iteration++) {
             for (int doc = 0; doc < numDocuments; doc++) {
-
                 startTime = System.currentTimeMillis();
+
                 samplePath(doc);
                 runningTotal += (System.currentTimeMillis() - startTime);
                 totalTimings += 1;
+
                 if (doc % 50 == 0) {
+
+                    // update the mean timings
                     timingMean = runningTotal / totalTimings;
                     runningTotal = 0;
                     totalTimings = 0;
-                    levelPrefix = showLevelCounts();
+                    String progress = showLevelCounts("Sample Path : ", doc, numDocuments, timingMean);
+                    lineLength = progress.length();
                     System.out.print("\r");
-                    System.out.print("Sample Path : " + doc + " of " + numDocuments + ", mills per iter: " + timingMean + " " + levelPrefix);
+                    if (lineLength < lastLineLength) {
+                        System.out.print(StringUtils.repeat(" ", lastLineLength));
+                        System.out.print("\r");
+                    }
+                    System.out.print(progress);
+                    lastLineLength = lineLength;
                 }
-
-
-
             }
-            System.out.print("\n");
+            runningTotal = 0;
+            totalTimings = 0;
             for (int doc = 0; doc < numDocuments; doc++) {
                 startTime = System.currentTimeMillis();
+
                 sampleTopics(doc);
                 runningTotal += (System.currentTimeMillis() - startTime);
                 totalTimings += 1;
@@ -219,30 +237,29 @@ public class HierarchicalLDA implements Serializable {
                     timingMean = runningTotal / totalTimings;
                     runningTotal = 0;
                     totalTimings = 0;
-                    levelPrefix = showLevelCounts();
-                    System.out.print("\r");
-                    System.out.print("Sample Topics : " + doc + " of " + numDocuments + ", mills per iter: " + timingMean + " " + levelPrefix);
+                    String progress = showLevelCounts("Sample Topics : ", doc, numDocuments, timingMean);
+                    lineLength = progress.length();
+                    System.out.print("\r");;
+                    if (lineLength < lastLineLength) {
+                        System.out.print(StringUtils.repeat(" ", lastLineLength));
+                        System.out.print("\r");
+                    }
+                    System.out.print(progress);
+                    lastLineLength = lineLength;
                 }
-
-
-
             }
             System.out.print("\n");
-
             countNodeLevels(rootNode, true);
 
             if (iteration % displayTopicsInterval == 0) {
                 printNodes();
             }
 
-
-
-            if (showProgress) {
-                System.out.print(".");
-                if (iteration % 50 == 0) {
-                    System.out.println(" " + iteration);
-                }
+            if (saveEvery > 0 & iteration > 0 & iteration % saveEvery == 0) {
+                printState(new PrintWriter(stateFile));
+                printEdgeList(topicFile);
             }
+
         }
     }
 
@@ -871,6 +888,8 @@ public class HierarchicalLDA implements Serializable {
             e.printStackTrace();
         }
     }
+
+
 
     class NCRPNode implements Serializable {
         int customers;
