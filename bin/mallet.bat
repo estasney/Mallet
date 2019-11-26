@@ -11,7 +11,8 @@ goto :eof
 :gotMalletHome
 
 set MALLET_CLASSPATH=%MALLET_HOME%\class;%MALLET_HOME%\lib\mallet-deps.jar
-set MALLET_MEMORY=1G
+set MALLET_MEMORY_MAX=2G
+set MALLET_MEMORY_MIN=1G
 set MALLET_ENCODING=UTF-8
 
 set CMD=%1
@@ -47,6 +48,7 @@ echo   classify-dir      classify the contents of a directory with a saved class
 echo   classify-file     classify data from a single file with a saved classifier
 echo   classify-svmlight classify data from a single file in SVMLight format
 echo   train-topics      train a topic model from Mallet data files
+echo   train-hlda        train a hlda model
 echo   infer-topics      use a trained topic model to infer topics for new documents
 echo   evaluate-topics   estimate the probability of new documents given a trained model
 echo   prune             remove features based on frequency or information gain
@@ -70,6 +72,6 @@ goto getArg
 
 :run
 
-java -Xmx%MALLET_MEMORY% -ea -Dfile.encoding=%MALLET_ENCODING% -classpath %MALLET_CLASSPATH% %CLASS% %MALLET_ARGS%
+java -Xms%MALLET_MEMORY_MIN% -Xmx%MALLET_MEMORY_MAX% -ea -Dfile.encoding=%MALLET_ENCODING% -classpath %MALLET_CLASSPATH% %CLASS% %MALLET_ARGS%
 
 :eof

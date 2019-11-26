@@ -163,6 +163,7 @@ public class HierarchicalLDA implements Serializable {
         if (reset) {
             for (int i = 1; i < numLevels; i++) {
                 levelTotalNodes[i] = 0;
+                levelTotalTokens[i] = 0;
             }
 
         }
@@ -377,7 +378,7 @@ public class HierarchicalLDA implements Serializable {
             node = node.getNewLeaf();
         }
 
-        node.addPath();
+        node.addPath(); // increase customers up this node's parents
         documentLeaves[doc] = node;
 
         for (level = numLevels - 1; level >= 0; level--) {
@@ -423,8 +424,6 @@ public class HierarchicalLDA implements Serializable {
         //  this topic.
         double nodeWeight = 0.0;
         int totalTokens = 0;
-        int keyvalKey; // the token id
-        int keyvalValue; // the token count in this node
         int nodeTypeCount;
         double nodeWeightCalc;
 
@@ -435,10 +434,8 @@ public class HierarchicalLDA implements Serializable {
         //if (iteration > 1) { System.out.println(level + " " + nodeWeight); }
 
         for (IntIntCursor keyVal : typeCounts[level]) {
-            keyvalKey = keyVal.value;
-            keyvalValue = keyVal.key;
-            nodeTypeCount = node.typeCounts[keyvalKey];
-            for (int i = 0; i < keyvalValue; i++) {
+            nodeTypeCount = node.typeCounts[keyVal.key];
+            for (int i = 0; i < keyVal.value; i++) {
                 nodeWeightCalc = Math.log((levelEta + nodeTypeCount + i) /
                         (levelEtaSum + node.totalTokens + totalTokens));
                 nodeWeight += nodeWeightCalc;
