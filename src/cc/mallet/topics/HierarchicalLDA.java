@@ -255,6 +255,8 @@ public class HierarchicalLDA implements Serializable {
             if (saveEvery > 0 & iteration > 0 & iteration % saveEvery == 0) {
                 printState(new PrintWriter(stateFile));
                 printEdgeList(topicFile);
+                File modelFileOut = new File(modelFile);
+                write(modelFileOut);
                 System.out.println("Saved state");
             }
 
@@ -545,11 +547,13 @@ public class HierarchicalLDA implements Serializable {
         int doc = 0;
         StringBuffer header = new StringBuffer();
         int headerLevel;
-        for (headerLevel = 0; headerLevel <= numLevels - 1; headerLevel++) {
-            header.append("Level ").append(headerLevel).append(",");
+        for (headerLevel = 0; headerLevel < numLevels; headerLevel++) {
+            header.append("Level_").append(headerLevel).append("_ID").append(",");
+            header.append("Level_").append(headerLevel).append("_Customers").append(",");
+            header.append("Level_").append(headerLevel).append("_NTokens").append(",");
         }
 
-        header.append("Node_ID,Token,Token_Level,Token_Weight");
+        header.append("Node_ID,Node_Customers,Node_NTokens,Token,Token_Level,Token_Weight");
         out.println(header);
 
         // instances are documents, get all tokens present in all documents
@@ -578,14 +582,14 @@ public class HierarchicalLDA implements Serializable {
 
             // this describes the hierarchy of the nodes
             for (level = numLevels - 1; level >= 0; level--) {
-                path.insert(0, "," + node.nodeID);
+                path.append(node.nodeID).append(",").append(node.customers).append(",").append(node.totalTokens).append(",");
                 node = node.parent;
             }
 
-            path.replace(0, 1, "");
-            path.append(",");
+            path.append(childNode.nodeID).append(",").append(childNode.customers).append(",").append(childNode.totalTokens).append(",");
 
             List<Double> nodeWeights = childNode.getTopWeights(seqLen);
+            String pathOut = path.toString();
 
             for (token = 0; token < seqLen; token++) {
                 type = fs.getIndexAtPosition(token);
@@ -595,13 +599,13 @@ public class HierarchicalLDA implements Serializable {
                 Object alphaObject = alphabet.lookupObject(type);
                 String alphaString = alphaObject.toString();
                 String tokenDataSafe = this.escapeSpecialCharacters(alphaString);
-                String tokenData = path + "" + type + "," + tokenDataSafe + "," + level + "," + tokenWeight;
+                String tokenData = pathOut + "" + type + "," + tokenDataSafe + "," + level + "," + tokenWeight;
 
                 out.println(tokenData);
             }
-
             doc++;
         }
+        out.close();
     }
 
     public String escapeSpecialCharacters(String data) {
@@ -619,7 +623,6 @@ public class HierarchicalLDA implements Serializable {
 
         // Create token 2 id mapping
         Map<String, Integer> token2Id = new HashMap<String, Integer>();
-
 
         Alphabet alphabet = instances.getDataAlphabet();
         ArrayList alphabetArray = alphabet.entries;
