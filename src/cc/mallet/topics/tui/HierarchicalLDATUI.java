@@ -28,6 +28,8 @@ public class HierarchicalLDATUI {
 			"The filename in which to write the binary topic model at the end of the iterations.  " +
 					"By default this is null, indicating that no file will be written.", null);
 
+	static CommandOption.String inputModelFilename = new CommandOption.String(HierarchicalLDATUI.class, "input-model", "FILENAME", false,
+			null, "If given, this model will be loaded and training resumed.", null);
 
 	static CommandOption.String topicNodeFile = new CommandOption.String
 			(HierarchicalLDATUI.class, "output-topics", "FILENAME", true, null,
@@ -71,8 +73,10 @@ public class HierarchicalLDATUI {
 			HierarchicalLDATUI.class, "save-every", "INTEGER", true, 0,
 			"If set to a number > 0 the model will save it's state every n iterations.", null);
 
-	public static void main (String[] args) throws java.io.IOException {
+	public static void main (String[] args) throws Exception {
 
+		HierarchicalLDA hlda;
+		boolean was_loaded;
 		// Process the command-line options
 		CommandOption.setSummary (HierarchicalLDATUI.class,
 								  "Hierarchical LDA with a fixed tree depth.");
@@ -115,9 +119,17 @@ public class HierarchicalLDATUI {
 		if (testingFile.value() != null) {
 			testing = InstanceList.load(new File(testingFile.value()));
 		}
-	
-		HierarchicalLDA hlda = new HierarchicalLDA();
-		
+
+
+		if (inputModelFilename.value() != null) {
+			hlda = HierarchicalLDA.read(new File(inputModelFilename.value()));
+			was_loaded = true;
+			System.out.println("Loaded model");
+		} else {
+			hlda = new HierarchicalLDA();
+			was_loaded = false;
+		}
+
 		// Set hyperparameters
 
 		hlda.setAlpha(alpha.value());
@@ -140,9 +152,11 @@ public class HierarchicalLDATUI {
 			random = new Randoms(randomSeed.value());
 		}
 
-		// Initialize and start the sampler
+		if (!was_loaded) {
+			// Initialize
+			hlda.initialize(instances, testing, numLevels.value(), random);
+		}
 
-		hlda.initialize(instances, testing, numLevels.value(), random);
 		hlda.estimate(numIterations.value());
 		
 		// Output results
