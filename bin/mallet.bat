@@ -11,8 +11,7 @@ goto :eof
 :gotMalletHome
 
 set MALLET_CLASSPATH=%MALLET_HOME%\class;%MALLET_HOME%\lib\mallet-deps.jar
-set MALLET_MEMORY_MAX=2G
-set MALLET_MEMORY_MIN=1G
+set MALLET_MEMORY=1G
 set MALLET_ENCODING=UTF-8
 
 set CMD=%1
@@ -72,6 +71,6 @@ goto getArg
 
 :run
 
-java -Xms%MALLET_MEMORY_MIN% -Xmx%MALLET_MEMORY_MAX% -ea -Dfile.encoding=%MALLET_ENCODING% -classpath %MALLET_CLASSPATH% %CLASS% %MALLET_ARGS%
+java -Xmx%MALLET_MEMORY% -ea -Dfile.encoding=%MALLET_ENCODING% -classpath %MALLET_CLASSPATH% %CLASS% %MALLET_ARGS%
 
 :eof
