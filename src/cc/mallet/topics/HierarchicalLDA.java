@@ -39,7 +39,7 @@ public class HierarchicalLDA implements Serializable {
 
     String stateFile;
     String topicFile;
-    String modelFile ;
+    String modelFile;
 
     Randoms random;
 
@@ -81,7 +81,7 @@ public class HierarchicalLDA implements Serializable {
         this.saveEvery = value;
     }
 
-    public void setSaveState(String stateFileValue, String topicFileValue, String modelFileValue){
+    public void setSaveState(String stateFileValue, String topicFileValue, String modelFileValue) {
         this.stateFile = stateFileValue;
         this.topicFile = topicFileValue;
         this.modelFile = modelFileValue;
@@ -174,15 +174,15 @@ public class HierarchicalLDA implements Serializable {
     public String showLevelCounts(String prefix, int outerIter, int outerTotal, int innerIter, int innerTotal, double timingmean) {
         countNodeLevels(rootNode, true);
         StringBuffer progress = new StringBuffer();
-        progress.append("Iter ").append(outerIter).append(" of ").append(outerTotal).append(" : ").append(prefix).append(innerIter+1).append(" of ").append(innerTotal).append(" ms/iter : ")
+        progress.append("Iter ").append(outerIter).append(" of ").append(outerTotal).append(" : ").append(prefix).append(innerIter + 1).append(" of ").append(innerTotal).append(" ms/iter : ")
                 .append(timingmean).append(" ");
 
         progress.append("(");
-        for (int level = 0; level < numLevels; level ++) {
+        for (int level = 0; level < numLevels; level++) {
             progress.append(levelTotalNodes[level]);
             progress.append(":");
             progress.append(levelTotalTokens[level]);
-            if (level + 1 != numLevels){
+            if (level + 1 != numLevels) {
                 progress.append(", ");
             } else {
                 progress.append(")");
@@ -253,12 +253,22 @@ public class HierarchicalLDA implements Serializable {
             }
 
             if (saveEvery > 0 & iteration > 0 & iteration % saveEvery == 0) {
-                printState(new PrintWriter(stateFile));
-                printEdgeList(topicFile);
-                File modelFileOut = new File(modelFile);
-                write(modelFileOut);
-                System.out.println("Saved state");
+                if (stateFile != null) {
+                    printState(new PrintWriter(stateFile));
+                }
+                if (topicFile != null) {
+                    printEdgeList(topicFile);
+                }
+                if (modelFile != null) {
+                    File modelFileOut = new File(modelFile);
+                    write(modelFileOut);
+                }
+                if (stateFile != null || topicFile != null || modelFile != null) {
+                    System.out.println("Saved state");
+                }
+
             }
+
 
         }
     }
@@ -518,9 +528,9 @@ public class HierarchicalLDA implements Serializable {
             sum = 0.0;
             for (level = 0; level < numLevels; level++) {
                 levelWeights[level] =
-					(alpha[level] + levelCounts[level]) *
-					(eta[level] + path[level].typeCounts[type]) /
-					(etaSum[level] + path[level].totalTokens);
+                        (alpha[level] + levelCounts[level]) *
+                                (eta[level] + path[level].typeCounts[type]) /
+                                (etaSum[level] + path[level].totalTokens);
                 sum += levelWeights[level];
             }
             level = random.nextDiscrete(levelWeights, sum);
@@ -891,7 +901,6 @@ public class HierarchicalLDA implements Serializable {
     }
 
 
-
     class NCRPNode implements Serializable {
         int customers;
         ArrayList<NCRPNode> children;
@@ -979,13 +988,13 @@ public class HierarchicalLDA implements Serializable {
 
             int i = 0;
             for (NCRPNode child : children) {
-            	weights[i] = (double) child.customers / (gamma[child.level] + customers);
+                weights[i] = (double) child.customers / (gamma[child.level] + customers);
                 i++;
             }
 
-            for (double weight: weights){
-            	weightsSum += weight;
-			}
+            for (double weight : weights) {
+                weightsSum += weight;
+            }
 
             int choice = random.nextDiscrete(weights, weightsSum);
             return children.get(choice);
@@ -1012,8 +1021,8 @@ public class HierarchicalLDA implements Serializable {
             weights[0] = gamma[this.level] / (gamma[this.level] + customers);
 
             for (double weight : weights) {
-            	weightsSum += weight;
-			}
+                weightsSum += weight;
+            }
 
             int choice = random.nextDiscrete(weights, weightsSum);
             if (choice == 0) {
