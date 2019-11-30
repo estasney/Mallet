@@ -30,7 +30,7 @@ public class HierarchicalLDA implements Serializable {
     double[] eta;   // smoothing on word distributions. A Topic-Word Prior
     double[] etaSum;
 
-    int[][] levels; // indexed < doc, token >
+    int[][] levels; // indexed < doc, token >. Each document will have tokens assigned to a level
     NCRPNode[] documentLeaves; // currently selected path (ie leaf node) through the NCRP tree
 
     int totalNodes = 0;
@@ -45,7 +45,6 @@ public class HierarchicalLDA implements Serializable {
 
     int displayTopicsInterval = 50;
     int numWordsToDisplay = 10;
-    int displayNodeCountsInterval = 1;
     int saveEvery = 0;
 
     public HierarchicalLDA() {
@@ -129,7 +128,7 @@ public class HierarchicalLDA implements Serializable {
             path[0] = rootNode;
             rootNode.customers++;
             for (int level = 1; level < numLevels; level++) {
-                path[level] = path[level - 1].select();
+                path[level] = path[level - 1].select();  // TODO burn-in
                 path[level].customers++;
             }
             node = path[numLevels - 1];
@@ -140,7 +139,7 @@ public class HierarchicalLDA implements Serializable {
 
             for (int token = 0; token < seqLen; token++) {
                 int type = fs.getIndexAtPosition(token);
-                levels[doc][token] = random.nextInt(numLevels);
+                levels[doc][token] = random.nextInt(numLevels);  // TODO pass params?
                 node = path[levels[doc][token]];
                 node.totalTokens++;
                 node.typeCounts[type]++;
@@ -500,7 +499,6 @@ public class HierarchicalLDA implements Serializable {
         int[] levelCounts = new int[numLevels];
         int type, token, level;
         double sum;
-        double levelAlpha, levelEta, levelEtaSum;
 
         // Get the leaf
         node = documentLeaves[doc];
