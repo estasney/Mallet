@@ -82,7 +82,6 @@ public class HierarchicalLDATUI {
 		// Process the command-line options
 		CommandOption.setSummary (HierarchicalLDATUI.class,
 								  "Hierarchical LDA with a fixed tree depth.");
-		System.out.println(Arrays.toString(args));
 		CommandOption.process (HierarchicalLDATUI.class, args);
 
 
