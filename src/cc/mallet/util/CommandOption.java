@@ -449,7 +449,7 @@ public abstract class CommandOption
 		}
 		public int[] value () { return value; }
 		public void parseArg (java.lang.String arg) {
-			java.lang.String elts[] = arg.split(",");
+			java.lang.String elts[] = arg.split(",|:");
 			value = new int[elts.length];
 			for (int i = 0; i < elts.length; i++)
 				value[i] = java.lang.Integer.parseInt(elts[i]);
@@ -502,7 +502,7 @@ public abstract class CommandOption
 		}
 		public double[] value () { return value; }
 		public void parseArg (java.lang.String arg) {
-			java.lang.String elts[] = arg.split(",");
+			java.lang.String elts[] = arg.split(",|:");
 			value = new double[elts.length];
 			for (int i = 0; i < elts.length; i++)
 				value[i] = java.lang.Double.parseDouble(elts[i]);

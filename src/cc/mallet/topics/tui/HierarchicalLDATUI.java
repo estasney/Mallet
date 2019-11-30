@@ -6,6 +6,7 @@ import cc.mallet.types.InstanceList;
 import cc.mallet.topics.HierarchicalLDA;
 
 import java.io.*;
+import java.util.Arrays;
 
 public class HierarchicalLDATUI {
 	
@@ -48,7 +49,7 @@ public class HierarchicalLDATUI {
 		 "The number of iterations between printing a brief summary of the topics so far.", null);
 
 	static CommandOption.Integer topWords = new CommandOption.Integer
-		(HierarchicalLDATUI.class, "num-top-words", "INTEGER", true, 20,
+		(HierarchicalLDATUI.class, "num-top-words", "INTEGER", true, 10,
 		 "The number of most probable words to print for each topic after model estimation.", null);
 
 	static CommandOption.Integer numLevels = new CommandOption.Integer
@@ -56,21 +57,22 @@ public class HierarchicalLDATUI {
 		 "The number of levels in the tree.", null);
 
 	static CommandOption.DoubleArray alpha = new CommandOption.DoubleArray
-		(HierarchicalLDATUI.class, "alpha", "DECIMAL,[DECIMAL,...]", true, new double[] {1, 1, 0.1},
+		(HierarchicalLDATUI.class, "alpha", "DECIMAL,[DECIMAL,...]", true, new double[] {1, 1, 1},
 		 "Alpha parameter: smoothing over level distributions.  "+
-				"For example --alpha 10,10,10", null);
+				"For example --alpha 10,10,10 or --alpha 10:10:10 (on Windows)", null);
 
 	static CommandOption.DoubleArray gamma = new CommandOption.DoubleArray
-		(HierarchicalLDATUI.class, "gamma", "DECIMAL,[DECIMAL,...]", true, new double[] {1.0, 1.0, 0.1},
+		(HierarchicalLDATUI.class, "gamma", "DECIMAL,[DECIMAL,...]", true, new double[] {1.0, 1.0, 1.0},
 		 "Gamma parameter: CRP smoothing parameter; number of imaginary customers at next, as yet unused table   "+
-				"For example --gamma 1,1,1", null);
+				"For example --gamma 1,1,1 or --gamma 1:1:1 (on Windows)", null);
 
 	static CommandOption.DoubleArray eta = new CommandOption.DoubleArray
-		(HierarchicalLDATUI.class, "eta", "DECIMAL,[DECIMAL,...]", true, new double[] {1, 1, 0.1},
-		 "Eta parameter: smoothing over topic-word distributions", null);
+		(HierarchicalLDATUI.class, "eta", "DECIMAL,[DECIMAL,...]", true, new double[] {1, 1, 1},
+		 "Eta parameter: smoothing over topic-word distributions  "+
+				"For example --eta 1,1,1 or --eta 1:1:1 (on Windows)", null);
 
 	static CommandOption.Integer saveEvery = new CommandOption.Integer(
-			HierarchicalLDATUI.class, "save-every", "INTEGER", true, 0,
+			HierarchicalLDATUI.class, "save-every", "INTEGER", true, -1,
 			"If set to a number > 0 the model will save it's state every n iterations.", null);
 
 	public static void main (String[] args) throws Exception {
@@ -80,7 +82,7 @@ public class HierarchicalLDATUI {
 		// Process the command-line options
 		CommandOption.setSummary (HierarchicalLDATUI.class,
 								  "Hierarchical LDA with a fixed tree depth.");
-
+		System.out.println(Arrays.toString(args));
 		CommandOption.process (HierarchicalLDATUI.class, args);
 
 
