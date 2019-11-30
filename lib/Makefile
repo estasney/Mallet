@@ -1,7 +1,8 @@
 JARS = \
 bsh.jar \
 hppc-0.7.1.jar \
-junit-4.12.jar
+junit-4.12.jar \
+commons-lang3-3.9.jar
 
 # note: jython.jar not included above, because only needed by bin/mallethon
 
