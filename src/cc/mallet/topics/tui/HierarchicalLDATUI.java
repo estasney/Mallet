@@ -142,6 +142,7 @@ public class HierarchicalLDATUI {
 		hlda.setTopicDisplay(showTopicsInterval.value(), topWords.value());
 		hlda.setSaveEvery(saveEvery.value());
 		hlda.setSaveState(stateFile.value(), topicNodeFile.value(), outputModelFilename.value());
+		hlda.setInputFile(inputFile.value());
 
 		// Initialize random number generator
 

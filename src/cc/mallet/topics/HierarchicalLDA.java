@@ -4,6 +4,7 @@ import java.util.*;
 import java.io.*;
 
 
+import cc.mallet.extract.Field;
 import cc.mallet.types.*;
 
 import cc.mallet.util.Randoms;
@@ -12,7 +13,6 @@ import com.carrotsearch.hppc.ObjectDoubleHashMap;
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.cursors.IntIntCursor;
 import org.apache.commons.lang3.StringUtils;
-
 
 public class HierarchicalLDA implements Serializable {
 
@@ -36,7 +36,9 @@ public class HierarchicalLDA implements Serializable {
     int totalNodes = 0;
     int[] levelTotalNodes;
     long[] levelTotalTokens;
+    int iterationsRun = 0;
 
+    String inputFile;
     String stateFile;
     String topicFile;
     String modelFile;
@@ -84,6 +86,10 @@ public class HierarchicalLDA implements Serializable {
         this.stateFile = stateFileValue;
         this.topicFile = topicFileValue;
         this.modelFile = modelFileValue;
+    }
+
+    public void setInputFile(String inputFile) {
+        this.inputFile = inputFile;
     }
 
     public void initialize(InstanceList instances, InstanceList testing,
@@ -268,7 +274,7 @@ public class HierarchicalLDA implements Serializable {
 
             }
 
-
+        iterationsRun += 1;
         }
     }
 
@@ -870,6 +876,35 @@ public class HierarchicalLDA implements Serializable {
             System.err.println("Problem serializing HierarchicalLDA to file " +
                     serializedModelFile + ": " + e);
         }
+    }
+
+    public static String readParams(File f) throws Exception{
+        HierarchicalLDA topicModel = read(f);
+
+        StringBuilder output = new StringBuilder();
+
+        String[] paramNamesStr = {"inputFile", "stateFile", "topicFile", "numLevels", "iterationsRun"};
+        String[] paramNamesArr = {"alpha", "gamma", "eta"};
+
+        for (String p : paramNamesStr) {
+            String value = (String) topicModel.getClass().getField(p).get(topicModel);
+            output.append(p).append(" : ");
+            output.append(value).append("\n");
+        }
+
+        for (String p : paramNamesArr) {
+            String value = java.util.Arrays.toString((double[]) topicModel.getClass().getField(p).get(topicModel));
+            output.append(p).append(" : ");
+            output.append(value).append("\n");
+        }
+
+        return output.toString();
+
+
+
+
+
+
     }
 
     public static HierarchicalLDA read(File f) throws Exception {
