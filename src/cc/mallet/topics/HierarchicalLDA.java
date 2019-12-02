@@ -500,7 +500,7 @@ public class HierarchicalLDA implements Serializable {
         int type, token, level;
         double sum;
 
-        // Get the leaf
+        // Get the leaf and copy it to path
         node = documentLeaves[doc];
         for (level = numLevels - 1; level >= 0; level--) {
             path[level] = node;
@@ -518,12 +518,14 @@ public class HierarchicalLDA implements Serializable {
             type = fs.getIndexAtPosition(token);
 
             levelCounts[docLevels[token]]--;
-            node = path[docLevels[token]];
+            node = path[docLevels[token]];  // get the node at level 0, level 1, ... that the token is assigned to
             node.typeCounts[type]--;
             node.totalTokens--;
 
 
             sum = 0.0;
+
+            // Pick existing or new level for the token based on below calc
             for (level = 0; level < numLevels; level++) {
                 levelWeights[level] =
                         (alpha[level] + levelCounts[level]) *
